@@ -7,6 +7,11 @@ The package is organised by the question you are asking:
 * :mod:`ab_lab.analyze` - after the experiment: what is the effect, and how sure am I?
 * :mod:`ab_lab.sequential` - during the experiment: may I look at this yet?
 * :mod:`ab_lab.simulate` - underneath all of it: does this code actually work?
+
+One vocabulary difference to know about: design functions take
+``alternative="two-sided"`` or ``"one-sided"`` (a sample size does not depend on
+*which* direction), while the analysis functions follow SciPy and take
+``"two-sided"``, ``"less"`` or ``"greater"`` (a p-value does).
 """
 
 from .analyze import bootstrap_diff, mann_whitney, proportion_test, welch_t_test

@@ -131,7 +131,7 @@ def build_rows(rng: np.random.Generator) -> list[Row]:
                 normal_draw(n_per_group=2_000, mean=0.0, std_dev=1.0),
                 msprt_p_value(tau=tau_from_mde(0.1)),
                 list(range(200, 2_001, 200)),
-                N_EXPERIMENTS // 2,
+                N_EXPERIMENTS,
                 rng,
                 alpha=ALPHA,
             ),
@@ -145,7 +145,10 @@ def main() -> None:
     rng = np.random.default_rng(SEED)
     rows = build_rows(rng)
 
-    print(f"Validation run: {N_EXPERIMENTS:,} simulated experiments per row, seed {SEED}.\n")
+    counts = {row.summary.n_experiments for row in rows}
+    if len(counts) != 1:
+        raise ValueError(f"rows disagree on the experiment count: {sorted(counts)}")
+    print(f"Validation run: {counts.pop():,} simulated experiments per row, seed {SEED}.\n")
     print("| Scenario | Claim | Empirical | MC error | Verdict |")
     print("|---|---|---|---|---|")
     for row in rows:

@@ -11,10 +11,16 @@ standardised effect size and then invert the corresponding power function
 numerically. Keeping the core separate is what makes the whole module
 checkable against ``statsmodels`` in a handful of tests.
 
-Sign conventions: effect sizes are used as absolute values, so a lift and a
-drop of the same magnitude need the same sample size. ``alternative`` is either
-``"two-sided"`` or ``"one-sided"``; the one-sided variant spends the full alpha
-in a single tail.
+Sign conventions: a standardised ``effect_size`` is used as an absolute value,
+so for *means* a lift and a drop of the same magnitude need the same sample
+size. That symmetry does **not** carry over to proportions - Cohen's h is not
+symmetric around a baseline, and detecting a 1pp drop from 2% takes materially
+fewer units than detecting a 1pp lift (2,254 against 3,789 per arm at 80%
+power). Guardrail experiments should therefore be sized in the direction they
+actually care about.
+
+``alternative`` is either ``"two-sided"`` or ``"one-sided"``; the one-sided
+variant spends the full alpha in a single tail.
 """
 
 from __future__ import annotations
@@ -151,6 +157,17 @@ def _far_tail_bound(critical: float, noncentrality: float) -> float:
     return float(stats.norm.cdf(-critical - noncentrality))
 
 
+def _check_power(power: float) -> float:
+    """Reject a target power the equation has no solution for.
+
+    Without this the failure surfaces from deep inside the root finder as
+    "f(a) and f(b) must have different signs", which says nothing useful.
+    """
+    if not 0.0 < power < 1.0:
+        raise ValueError(f"power must be in (0, 1), got {power}")
+    return power
+
+
 def _solve_sample_size(
     power_fn,
     effect_size: float,
@@ -164,8 +181,7 @@ def _solve_sample_size(
     Power is monotone in n, so a bracketed root finder is both sufficient and
     robust - no gradients, no starting guess to tune.
     """
-    if not 0.0 < power < 1.0:
-        raise ValueError(f"power must be in (0, 1), got {power}")
+    _check_power(power)
     if effect_size == 0.0:
         raise ValueError("effect_size must be non-zero: a null effect needs infinite sample")
 
@@ -275,6 +291,7 @@ def mde_for_mean(
     """
     if std_dev <= 0.0:
         raise ValueError(f"std_dev must be positive, got {std_dev}")
+    _check_power(power)
 
     def gap(effect_size: float) -> float:
         return power_t(effect_size, n_per_group, alpha, ratio, alternative) - power
@@ -290,24 +307,38 @@ def mde_for_proportion(
     power: float = 0.8,
     ratio: float = 1.0,
     alternative: Alternative = "two-sided",
+    direction: Literal["increase", "decrease"] = "increase",
 ) -> float:
-    """Smallest absolute lift in a conversion rate detectable at ``n_per_group``.
+    """Smallest absolute move in a conversion rate detectable at ``n_per_group``.
 
-    Returned on the rate scale (``0.004`` means 0.4 percentage points), found by
-    inverting :func:`sample_size_for_proportion` numerically because Cohen's h
-    has no closed-form inverse in terms of an absolute lift.
+    Args:
+        direction: ``"increase"`` for the smallest detectable lift,
+            ``"decrease"`` for the smallest detectable drop. They differ:
+            Cohen's h is not symmetric around a baseline, so a guardrail metric
+            has to be asked about in the direction it can move.
+
+    Returned on the rate scale as a positive magnitude (``0.004`` means 0.4
+    percentage points either way), found by inverting
+    :func:`sample_size_for_proportion` numerically because Cohen's h has no
+    closed-form inverse in terms of an absolute lift.
     """
     if not 0.0 < baseline_rate < 1.0:
         raise ValueError(f"baseline_rate must be in (0, 1), got {baseline_rate}")
+    _check_power(power)
+    if direction not in ("increase", "decrease"):
+        raise ValueError(f"direction must be 'increase' or 'decrease', got {direction!r}")
+    sign = 1.0 if direction == "increase" else -1.0
 
-    def gap(mde: float) -> float:
-        effect_size = cohens_h(baseline_rate, baseline_rate + mde)
+    def gap(magnitude: float) -> float:
+        effect_size = cohens_h(baseline_rate, baseline_rate + sign * magnitude)
         return power_z(effect_size, n_per_group, alpha, ratio, alternative) - power
 
-    upper = (1.0 - baseline_rate) * (1.0 - 1e-9)
+    room = 1.0 - baseline_rate if direction == "increase" else baseline_rate
+    upper = room * (1.0 - 1e-9)
     if gap(upper) < 0.0:
         raise ValueError(
-            f"no detectable lift at n_per_group={n_per_group:g} for "
-            f"baseline_rate={baseline_rate:g}: even a jump to 100% stays under-powered"
+            f"no detectable {direction} at n_per_group={n_per_group:g} for "
+            f"baseline_rate={baseline_rate:g}: even the largest possible move stays "
+            f"under-powered"
         )
     return float(optimize.brentq(gap, 1e-12, upper, xtol=1e-12, rtol=1e-12))

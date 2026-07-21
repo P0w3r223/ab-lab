@@ -37,9 +37,14 @@ A/A experiments — **no true effect at all** — with 2 000 units per arm, alph
 
 Checked once, the test does what it says: 4.9% against a nominal 5%. Checked
 twenty times — a fortnight of glancing at a dashboard morning and evening —
-**one A/A experiment in four is declared a winner.** Stopping early also
-inflates the effect that gets reported, because stopping happens precisely on
-the large readings.
+**one A/A experiment in four is declared a winner.**
+
+The p-value is not the only casualty. Among the experiments that *were* stopped
+as significant, the reported effect is inflated too, because stopping happens
+precisely on the noisy excursions: mean |effect| of 0.175 when peeking against
+0.074 with a single look, in a world where the true effect is exactly zero.
+Both numbers are false positives; the peeked one claims to be more than twice
+as large.
 
 ![False positive rate against the number of looks](docs/images/peeking.png)
 
@@ -62,7 +67,7 @@ error of the empirical rate — the noise floor of the run itself:
 | Two-proportion z-test, A/A (no effect) | = 0.0500 | 0.0497 | ±0.0022 | pass |
 | Welch t-test, A/B (d = 0.2, n = 400) | = 0.8065 | 0.8077 | ±0.0039 | pass |
 | Sample size solved for 80% power (n = 14 745/arm) | = 0.8000 | 0.7929 | ±0.0041 | pass |
-| mSPRT, A/A with 10 looks (anytime-valid) | ≤ 0.0500 | 0.0120 | ±0.0015 | pass |
+| mSPRT, A/A with 10 looks (anytime-valid) | ≤ 0.0500 | 0.0110 | ±0.0010 | pass |
 
 Note the last row's claim. A fixed-horizon test promises its false positive
 rate *equals* alpha; an anytime-valid test promises only that it stays *at
@@ -142,9 +147,9 @@ src/ab_lab/
   simulate.py    # draws + p-value adapters + the A/A / A/B / peeking harness
 ```
 
-The library never prints and never plots — it returns data, so every number in
-this README is an assertion in a test rather than a screenshot. Rendering lives
-in `examples/`.
+The library never prints and never plots — it returns data. Every table above is
+regenerable with one command, and the numeric claims made about the API in this
+README are assertions in `tests/`. Rendering lives in `examples/`.
 
 ## Technical decisions
 
@@ -172,6 +177,13 @@ in `examples/`.
 - **Normal approximations are used for proportions** and are unreliable at very
   low rates with small samples (rule of thumb: at least 10 successes and 10
   failures expected per arm).
+- **Sample sizes may differ by a few percent from an online calculator**, which
+  usually applies the absolute-difference formula rather than Cohen's h
+  ([ADR 0002](docs/decisions/0002-cohens-h-for-proportion-sample-size.md)). For
+  the same reason a 1pp *drop* and a 1pp *lift* are not the same experiment:
+  from a 2% baseline they need 2 254 and 3 789 units per arm respectively, so
+  guardrail metrics have to be sized in the direction they can move
+  (`mde_for_proportion(..., direction="decrease")`).
 
 ## Roadmap
 

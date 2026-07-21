@@ -25,15 +25,22 @@ powerful near effects of that size and loses power far from it.
 from __future__ import annotations
 
 import math
+import sys
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 
 from .results import SequentialResult
 
+# Above this, exp() overflows a float. The likelihood ratio grows like
+# exp(z^2 / 2), so it leaves float range at |z| ~ 37.7 - reachable on a large
+# experiment with a real effect, which is precisely when the test should be
+# stopping rather than raising. Everything is therefore computed in log space.
+_MAX_LOG = math.log(sys.float_info.max)
 
-def mixture_likelihood_ratio(estimate: float, variance: float, tau: float) -> float:
-    """Likelihood ratio of the effect estimate under a N(0, tau^2) mixture.
+
+def log_mixture_likelihood_ratio(estimate: float, variance: float, tau: float) -> float:
+    """Log likelihood ratio of the effect estimate under a N(0, tau^2) mixture.
 
     Args:
         estimate: Observed difference of means, treatment minus control.
@@ -47,6 +54,8 @@ def mixture_likelihood_ratio(estimate: float, variance: float, tau: float) -> fl
 
     The square-root factor is the price of the mixture - early on, when ``V``
     is large, it holds the ratio down and stops the test from firing on noise.
+    This function returns the logarithm of that expression, which stays finite
+    for any evidence a real experiment can produce.
     """
     if variance <= 0.0:
         raise ValueError(f"variance must be positive, got {variance}")
@@ -54,17 +63,30 @@ def mixture_likelihood_ratio(estimate: float, variance: float, tau: float) -> fl
         raise ValueError(f"tau must be positive, got {tau}")
     widened = variance + tau**2
     exponent = (estimate**2 * tau**2) / (2.0 * variance * widened)
-    return math.sqrt(variance / widened) * math.exp(exponent)
+    return 0.5 * math.log(variance / widened) + exponent
+
+
+def mixture_likelihood_ratio(estimate: float, variance: float, tau: float) -> float:
+    """The mixture likelihood ratio itself.
+
+    Returns ``math.inf`` once the evidence exceeds float range - overwhelming
+    evidence is still a usable answer, whereas an exception at the moment of
+    stopping is not. Use :func:`log_mixture_likelihood_ratio` when the
+    magnitude matters.
+    """
+    log_ratio = log_mixture_likelihood_ratio(estimate, variance, tau)
+    return math.exp(log_ratio) if log_ratio < _MAX_LOG else math.inf
 
 
 def always_valid_p_value(estimate: float, variance: float, tau: float) -> float:
     """Anytime-valid p-value: the reciprocal of the mixture likelihood ratio.
 
-    Capped at 1.0. Unlike a fixed-horizon p-value this may be compared to alpha
-    at every look; the guarantee is on the *whole sequence* of looks, not on a
-    single pre-specified one.
+    Capped at 1.0, and computed as ``exp(-log LR)`` so that overwhelming
+    evidence underflows to 0.0 rather than overflowing. Unlike a fixed-horizon
+    p-value this may be compared to alpha at every look; the guarantee is on the
+    *whole sequence* of looks, not on a single pre-specified one.
     """
-    return min(1.0, 1.0 / mixture_likelihood_ratio(estimate, variance, tau))
+    return min(1.0, math.exp(-log_mixture_likelihood_ratio(estimate, variance, tau)))
 
 
 def msprt(
@@ -100,13 +122,14 @@ def msprt(
     if variance <= 0.0:
         raise ValueError("both groups are constant: there is no variance to test against")
 
-    ratio = mixture_likelihood_ratio(estimate, variance, tau)
+    log_ratio = log_mixture_likelihood_ratio(estimate, variance, tau)
     return SequentialResult(
         n_control=int(control_sample.size),
         n_treatment=int(treatment_sample.size),
         estimate=estimate,
-        likelihood_ratio=ratio,
-        p_value=min(1.0, 1.0 / ratio),
+        likelihood_ratio=math.exp(log_ratio) if log_ratio < _MAX_LOG else math.inf,
+        log_likelihood_ratio=log_ratio,
+        p_value=min(1.0, math.exp(-log_ratio)),
         alpha=alpha,
         tau=tau,
     )
@@ -167,6 +190,7 @@ class SequentialMonitor:
             n_treatment=result.n_treatment,
             estimate=result.estimate,
             likelihood_ratio=result.likelihood_ratio,
+            log_likelihood_ratio=result.log_likelihood_ratio,
             p_value=self._best_p_value,
             alpha=self.alpha,
             tau=self.tau,

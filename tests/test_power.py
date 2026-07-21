@@ -182,3 +182,27 @@ def test_undetectable_effect_fails_loudly_instead_of_running_forever():
 def test_mde_reports_when_no_lift_is_detectable():
     with pytest.raises(ValueError, match="under-powered"):
         mde_for_proportion(n_per_group=2, baseline_rate=0.5)
+
+
+def test_a_drop_and_a_lift_are_not_the_same_experiment():
+    """Cohen's h is not symmetric around a baseline: sizing a guardrail
+    experiment as if it were gives the wrong number."""
+    lift = sample_size_for_proportion(0.02, 0.01).per_group
+    drop = sample_size_for_proportion(0.02, -0.01).per_group
+    assert drop < lift
+
+    detectable_drop = mde_for_proportion(20_000, 0.10, direction="decrease")
+    detectable_lift = mde_for_proportion(20_000, 0.10, direction="increase")
+    assert detectable_drop < detectable_lift
+    assert sample_size_for_proportion(
+        0.10, -detectable_drop
+    ).exact_per_group == pytest.approx(20_000, rel=1e-6)
+
+
+def test_mde_rejects_an_unreachable_direction_or_power():
+    with pytest.raises(ValueError, match="direction must be"):
+        mde_for_proportion(20_000, 0.10, direction="sideways")
+    with pytest.raises(ValueError, match="power must be in"):
+        mde_for_proportion(20_000, 0.10, power=1.5)
+    with pytest.raises(ValueError, match="power must be in"):
+        mde_for_mean(20_000, std_dev=1.0, power=0.0)

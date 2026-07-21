@@ -78,15 +78,21 @@ def welch_t_test(
     control_sample = _as_sample(control, "control")
     treatment_sample = _as_sample(treatment, "treatment")
 
-    result = stats.ttest_ind(
-        treatment_sample, control_sample, equal_var=False, alternative=alternative
-    )
-    estimate = float(treatment_sample.mean() - control_sample.mean())
-
     # Welch-Satterthwaite: the standard error and the degrees of freedom both
     # come from the per-group variances, which is what makes the test robust.
     var_control = control_sample.var(ddof=1) / control_sample.size
     var_treatment = treatment_sample.var(ddof=1) / treatment_sample.size
+    if var_control + var_treatment == 0.0:
+        # Both arms constant: the degrees of freedom are 0/0. Left alone this
+        # returns a NaN p-value that reads as "not significant" - or, when the
+        # two constants differ, a p-value of exactly 0 from two degenerate
+        # samples. Sparse binary metrics reach this in practice.
+        raise ValueError("both groups are constant: there is no variance to test against")
+
+    result = stats.ttest_ind(
+        treatment_sample, control_sample, equal_var=False, alternative=alternative
+    )
+    estimate = float(treatment_sample.mean() - control_sample.mean())
     standard_error = float(np.sqrt(var_control + var_treatment))
     df = (var_control + var_treatment) ** 2 / (
         var_control**2 / (control_sample.size - 1)
@@ -261,6 +267,7 @@ def bootstrap_diff(
     )
 
     low, high = np.quantile(differences, [alpha / 2.0, 1.0 - alpha / 2.0])
+    spread = float(differences.std(ddof=1))
     # Two-sided achieved significance level, floored at the resolution the
     # resample count can actually support.
     tail = min(
@@ -274,7 +281,7 @@ def bootstrap_diff(
         estimate=observed,
         ci=ConfidenceInterval(float(low), float(high), 1.0 - alpha),
         p_value=min(p_value, 1.0),
-        statistic=observed / float(differences.std(ddof=1)) if differences.std(ddof=1) else 0.0,
+        statistic=observed / spread if spread else 0.0,
         alternative="two-sided",
         assumptions=(
             "observations are independent and identically distributed per group",

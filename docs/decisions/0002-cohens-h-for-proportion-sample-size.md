@@ -51,5 +51,10 @@ Reasons, in order of weight:
 - `mde_for_proportion` has no closed form (Cohen's h is not invertible in terms
   of an absolute lift) and is solved numerically with `brentq`. Round-trip tests
   pin it to `sample_size_for_proportion` at 1e-6 relative.
+- Cohen's h is **not symmetric** around a baseline, so a 1pp drop and a 1pp lift
+  are different experiments: from a 2% baseline, 2 254 against 3 789 units per
+  arm. `mde_for_proportion` therefore takes a `direction` argument, and the
+  module docstring says so - sizing a guardrail metric as if the two were the
+  same would over-buy traffic by two thirds.
 - A user comparing our number against an online calculator may see a few percent
-  difference. The README says so, and says why.
+  difference. Named in the README's limitations, with the reason.

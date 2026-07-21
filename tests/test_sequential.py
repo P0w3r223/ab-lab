@@ -9,6 +9,7 @@ from scipy import integrate, stats
 from ab_lab.sequential import (
     SequentialMonitor,
     always_valid_p_value,
+    log_mixture_likelihood_ratio,
     mixture_likelihood_ratio,
     msprt,
     tau_from_mde,
@@ -137,3 +138,37 @@ def test_monitor_rejects_degenerate_configuration():
 def test_constant_data_fails_loudly():
     with pytest.raises(ValueError, match="no variance to test against"):
         msprt(np.zeros(50), np.zeros(50), tau=0.1)
+
+
+@pytest.mark.parametrize("z_score", [40.0, 100.0, 1_000.0])
+def test_overwhelming_evidence_underflows_rather_than_overflowing(z_score):
+    """Regression: the ratio grows like exp(z^2/2) and leaves float range at
+    |z| ~ 37.7. Computing it directly raised OverflowError - at the moment the
+    test should have been stopping, on the winning arm."""
+    variance = 1e-6
+    estimate = z_score * np.sqrt(variance)
+
+    assert always_valid_p_value(estimate, variance, tau=0.1) == 0.0
+    assert mixture_likelihood_ratio(estimate, variance, tau=0.1) == np.inf
+    assert np.isfinite(log_mixture_likelihood_ratio(estimate, variance, tau=0.1))
+
+
+def test_the_monitor_survives_an_experiment_that_keeps_running_after_it_wins():
+    """The same regression, reached the way a user would: a large experiment
+    with a real effect, looked at three times."""
+    rng = np.random.default_rng(1)
+    control = rng.normal(0.0, 1.0, 50_000)
+    treatment = rng.normal(0.24, 1.0, 50_000)
+    monitor = SequentialMonitor(tau=0.1)
+
+    p_values = [monitor.look(control[:n], treatment[:n]).p_value for n in (5_000, 20_000, 50_000)]
+
+    assert p_values[-1] == 0.0
+    assert p_values == sorted(p_values, reverse=True)
+    assert monitor.looks[-1].likelihood_ratio == np.inf
+    assert monitor.looks[-1].log_likelihood_ratio > 700.0
+
+
+def test_the_finite_ratio_is_the_exponential_of_the_log_ratio():
+    log_ratio = log_mixture_likelihood_ratio(0.02, 1e-4, 0.01)
+    assert mixture_likelihood_ratio(0.02, 1e-4, 0.01) == pytest.approx(np.exp(log_ratio))

@@ -131,16 +131,50 @@ def test_the_type_i_error_climbs_with_every_extra_look():
 
 def test_peeking_biases_the_effect_it_stops_on():
     """Stopping early on a large difference does not just break the p-value -
-    it inflates the effect size that gets reported to the business."""
+    it inflates the effect size that gets reported to the business.
+
+    Measured on the *stopped* experiments and on the absolute effect. A signed
+    average over an A/A world cancels to zero by symmetry, so comparing signed
+    means would pass on variance alone and prove nothing.
+    """
     draw = normal_draw(n_per_group=1_000, mean=0.0, std_dev=1.0)
     rng = np.random.default_rng(107)
 
-    honest = run_with_peeking(draw, welch_p_value, [1_000], 1_000, rng, alpha=ALPHA)
+    honest = run_with_peeking(draw, welch_p_value, [1_000], 1_500, rng, alpha=ALPHA)
     peeked = run_with_peeking(
-        draw, welch_p_value, list(range(100, 1_001, 100)), 1_000, rng, alpha=ALPHA
+        draw, welch_p_value, list(range(100, 1_001, 100)), 1_500, rng, alpha=ALPHA
     )
 
-    assert abs(peeked.mean_estimate) > abs(honest.mean_estimate)
+    # Both are false positives; the peeked ones claim a much larger effect,
+    # because stopping happens on the excursions and early looks are noisier.
+    assert honest.mean_absolute_estimate_when_stopped == pytest.approx(0.11, abs=0.02)
+    assert peeked.mean_absolute_estimate_when_stopped > 1.5 * (
+        honest.mean_absolute_estimate_when_stopped
+    )
+
+
+def test_no_stopped_experiments_means_no_conditional_estimate():
+    summary = run_experiments(
+        draw=normal_draw(n_per_group=50),
+        p_value_fn=lambda control, treatment: 1.0,
+        n_experiments=20,
+        rng=np.random.default_rng(112),
+        alpha=ALPHA,
+    )
+    assert summary.n_rejections == 0
+    assert summary.mean_absolute_estimate_when_stopped is None
+
+
+def test_a_nan_p_value_is_an_error_and_not_a_non_rejection():
+    """Regression: NaN compares False against alpha, so an unguarded harness
+    would report a 0% false positive rate and call it a pass."""
+    with pytest.raises(ValueError, match="p-value function returned"):
+        run_experiments(
+            draw=normal_draw(n_per_group=50),
+            p_value_fn=lambda control, treatment: float("nan"),
+            n_experiments=5,
+            rng=np.random.default_rng(113),
+        )
 
 
 def test_the_sequential_test_survives_the_same_peeking():

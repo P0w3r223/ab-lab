@@ -145,12 +145,15 @@ def run_experiments(
     _check_run(n_experiments, alpha)
     rejections = 0
     estimate_total = 0.0
+    absolute_estimate_when_stopped = 0.0
 
     for _ in range(n_experiments):
         control, treatment = draw(rng)
-        estimate_total += float(treatment.mean() - control.mean())
-        if p_value_fn(control, treatment) < alpha:
+        estimate = float(treatment.mean() - control.mean())
+        estimate_total += estimate
+        if _checked_p_value(p_value_fn, control, treatment) < alpha:
             rejections += 1
+            absolute_estimate_when_stopped += abs(estimate)
 
     return SimulationSummary(
         n_experiments=n_experiments,
@@ -158,6 +161,9 @@ def run_experiments(
         nominal_alpha=alpha,
         mean_estimate=estimate_total / n_experiments,
         label=label,
+        mean_absolute_estimate_when_stopped=(
+            absolute_estimate_when_stopped / rejections if rejections else None
+        ),
     )
 
 
@@ -192,6 +198,7 @@ def run_with_peeking(
 
     rejections = 0
     estimate_total = 0.0
+    absolute_estimate_when_stopped = 0.0
 
     for _ in range(n_experiments):
         control, treatment = draw(rng)
@@ -201,16 +208,21 @@ def run_with_peeking(
                 f"but the last look needs {max(look_sizes)}"
             )
         stopped_at = len(look_sizes) - 1
+        stopped_early = False
         for index, size in enumerate(look_sizes):
-            if p_value_fn(control[:size], treatment[:size]) < alpha:
+            if _checked_p_value(p_value_fn, control[:size], treatment[:size]) < alpha:
                 rejections += 1
                 stopped_at = index
+                stopped_early = True
                 break
         # Report the effect as it stood when the experiment was stopped: this
         # is what an owner would have shipped, and it is biased upward exactly
         # because stopping happened on a large observed difference.
         final = look_sizes[stopped_at]
-        estimate_total += float(treatment[:final].mean() - control[:final].mean())
+        estimate = float(treatment[:final].mean() - control[:final].mean())
+        estimate_total += estimate
+        if stopped_early:
+            absolute_estimate_when_stopped += abs(estimate)
 
     return SimulationSummary(
         n_experiments=n_experiments,
@@ -218,6 +230,9 @@ def run_with_peeking(
         nominal_alpha=alpha,
         mean_estimate=estimate_total / n_experiments,
         label=label,
+        mean_absolute_estimate_when_stopped=(
+            absolute_estimate_when_stopped / rejections if rejections else None
+        ),
     )
 
 
@@ -235,11 +250,14 @@ def peeking_curve(
     Produces the headline curve: one look holds at alpha, and every additional
     look pushes the false positive rate further above it.
     """
+    # Validated up front: a bad schedule at the end of the list would otherwise
+    # surface only after the earlier, minutes-long cells had already run.
+    if any(count < 1 for count in look_counts):
+        raise ValueError(f"look counts must be positive, got {tuple(look_counts)}")
+    schedules = [_even_looks(max_n, count) for count in look_counts]
+
     summaries: list[SimulationSummary] = []
-    for count in look_counts:
-        if count < 1:
-            raise ValueError(f"look counts must be positive, got {tuple(look_counts)}")
-        look_sizes = _even_looks(max_n, count)
+    for count, look_sizes in zip(look_counts, schedules, strict=True):
         summaries.append(
             run_with_peeking(
                 draw,
@@ -260,6 +278,26 @@ def _even_looks(max_n: int, count: int) -> list[int]:
         raise ValueError(f"max_n={max_n} is too small for {count} looks of >= 2 observations")
     step = max_n / count
     return [int(round(step * (index + 1))) for index in range(count)]
+
+
+def _checked_p_value(
+    p_value_fn: PValueFn,
+    control: NDArray[np.float64],
+    treatment: NDArray[np.float64],
+) -> float:
+    """Call the p-value function and refuse to silently count a NaN.
+
+    A non-finite p-value compares False against alpha, so it would be tallied
+    as "no rejection" - and a harness that reports a 0% false positive rate
+    because every p-value was NaN is worse than one that crashes.
+    """
+    p_value = float(p_value_fn(control, treatment))
+    if not np.isfinite(p_value):
+        raise ValueError(
+            f"the p-value function returned {p_value} for a sample of "
+            f"{control.size} control and {treatment.size} treatment units"
+        )
+    return p_value
 
 
 def _check_run(n_experiments: int, alpha: float) -> None:

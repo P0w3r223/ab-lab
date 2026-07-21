@@ -66,7 +66,12 @@ def write_chart(
     fixed_horizon: list[SimulationSummary], sequential: list[SimulationSummary]
 ) -> None:
     """Save the chart. Imported lazily so the table runs without matplotlib."""
-    import matplotlib
+    try:
+        import matplotlib
+    except ImportError as error:  # pragma: no cover - depends on the environment
+        raise SystemExit(
+            "--plot needs matplotlib; install the dev extra: pip install -e \".[dev]\""
+        ) from error
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt

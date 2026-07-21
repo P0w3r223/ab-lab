@@ -108,12 +108,17 @@ class SequentialResult:
     ``p_value`` is an *always-valid* p-value: it may be compared to alpha at
     every look without inflating the type I error, which is exactly what a
     fixed-horizon p-value may not do.
+
+    ``likelihood_ratio`` saturates at ``math.inf`` under overwhelming evidence;
+    ``log_likelihood_ratio`` is the same quantity on a scale that stays finite,
+    and is the one to read when the magnitude matters.
     """
 
     n_control: int
     n_treatment: int
     estimate: float
     likelihood_ratio: float
+    log_likelihood_ratio: float
     p_value: float
     alpha: float
     tau: float
@@ -137,6 +142,10 @@ class SimulationSummary:
     nominal_alpha: float
     mean_estimate: float
     label: str
+    # Mean |effect| among the experiments that were declared significant. The
+    # winner's curse lives here: a *signed* average cancels out under A/A, so
+    # it cannot show that stopping early inflates what gets reported.
+    mean_absolute_estimate_when_stopped: float | None = None
 
     @property
     def rejection_rate(self) -> float:

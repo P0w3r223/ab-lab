@@ -107,6 +107,21 @@ def test_proportion_test_reports_a_degenerate_experiment():
         proportion_test(0, 500, 0, 500)
 
 
+@pytest.mark.parametrize(
+    ("control", "treatment"),
+    [
+        (np.zeros(50), np.zeros(50)),          # nothing happened in either arm
+        (np.zeros(50), np.ones(50)),           # everyone converted in exactly one arm
+    ],
+)
+def test_welch_refuses_two_constant_groups(control, treatment):
+    """Regression: the Welch-Satterthwaite df is 0/0 here. Left alone the test
+    returned a NaN p-value that reads as 'not significant', or a p-value of
+    exactly 0 from two degenerate samples. A sparse binary metric reaches this."""
+    with pytest.raises(ValueError, match="no variance to test against"):
+        welch_t_test(control, treatment)
+
+
 def test_mann_whitney_estimates_probability_of_superiority():
     control = np.array([1.0, 2.0, 3.0, 4.0])
     treatment = np.array([5.0, 6.0, 7.0, 8.0])
