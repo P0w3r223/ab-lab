@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ab-lab"
+version = "0.1.0"
+description = "Design and analysis of A/B experiments: power, tests, bootstrap, SRM and sequential peeking correction, validated by simulation."
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+keywords = ["ab-testing", "experimentation", "statistics", "power-analysis", "sequential-testing"]
+dependencies = [
+    "numpy>=1.26",
+    "scipy>=1.11",
+]
+
+[project.optional-dependencies]
+# statsmodels is a *test oracle*, not a runtime dependency: the point of the
+# package is to implement these methods, so shipping statsmodels alongside them
+# would defeat it. See docs/decisions/0001-no-statsmodels-at-runtime.md.
+dev = [
+    "pytest>=8.3,<9",
+    "hypothesis>=6.100",
+    "statsmodels>=0.14",
+    "ruff>=0.6",
+]
+notebooks = [
+    "matplotlib>=3.8",
+    "jupyter>=1.0",
+]
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+packages = ["ab_lab"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
