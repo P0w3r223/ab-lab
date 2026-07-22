@@ -133,6 +133,12 @@ print(result.assumptions)      # the caveats travel with the number
 
 # For a metric no closed-form test covers - median order value, say:
 boot = bootstrap_diff(control, treatment, statistic=np.median, n_resamples=10_000)
+
+# When both arms describe the *same* units - the same users, the same rows scored by
+# two models - resample the units, not the arms:
+from ab_lab.analyze import paired_bootstrap
+
+paired = paired_bootstrap(before, after)   # between-unit variance cancels
 ```
 
 ## Architecture
@@ -141,7 +147,7 @@ boot = bootstrap_diff(control, treatment, statistic=np.median, n_resamples=10_00
 src/ab_lab/
   results.py     # frozen dataclasses - every public function returns one
   power.py       # design: power_z / power_t core, sample size and MDE on top
-  analyze.py     # post-hoc: Welch, two-proportion z, Mann-Whitney, bootstrap
+  analyze.py     # post-hoc: Welch, two-proportion z, Mann-Whitney, bootstrap (paired and not)
   srm.py         # sample ratio mismatch (chi-square on the allocation)
   sequential.py  # mSPRT: anytime-valid p-values, SequentialMonitor
   simulate.py    # draws + p-value adapters + the A/A / A/B / peeking harness
