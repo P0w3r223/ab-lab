@@ -322,3 +322,107 @@ def _bootstrap_differences(
         remaining -= size
 
     return np.concatenate(chunks)
+
+
+def paired_bootstrap(
+    control: ArrayLike,
+    treatment: ArrayLike,
+    statistic: Callable[..., NDArray[np.float64]] = np.mean,
+    alpha: float = 0.05,
+    n_resamples: int = 10_000,
+    rng: np.random.Generator | None = None,
+) -> TestResult:
+    """Percentile bootstrap for a difference measured on the *same* units.
+
+    Use this when every observation appears in both arms: the same user seeing
+    both variants, the same rows scored by two models, the same days measured
+    before and after. Resampling the two arms independently - what
+    :func:`bootstrap_diff` does - throws away the pairing and pays for it with a
+    wider interval, because the variance between units is counted twice instead
+    of cancelling.
+
+    ``control[i]`` and ``treatment[i]`` must describe the same unit. Whole units
+    are resampled, so both arms always move together.
+
+    Args:
+        statistic: Applied to each arm separately, per resample; the result is
+            the difference of the two. For the mean this is the same as
+            bootstrapping the differences directly, but for the median or a
+            trimmed mean it is not, and the difference of statistics is the
+            quantity people mean when they name one.
+
+    The bootstrap keeps its usual failure mode here: it needs enough units for
+    the empirical distribution to stand in for the population one. Pairing does
+    not rescue a small sample, it only removes the between-unit variance.
+    """
+    alpha = _check_alpha(alpha)
+    control_sample = _as_sample(control, "control")
+    treatment_sample = _as_sample(treatment, "treatment")
+    if control_sample.size != treatment_sample.size:
+        raise ValueError(
+            f"paired samples must have the same length, got {control_sample.size} "
+            f"and {treatment_sample.size}"
+        )
+    if n_resamples < 100:
+        raise ValueError(f"n_resamples must be at least 100, got {n_resamples}")
+    generator = np.random.default_rng() if rng is None else rng
+
+    observed = float(statistic(treatment_sample) - statistic(control_sample))
+    differences = _paired_bootstrap_differences(
+        control_sample, treatment_sample, statistic, n_resamples, generator
+    )
+
+    low, high = np.quantile(differences, [alpha / 2.0, 1.0 - alpha / 2.0])
+    spread = float(differences.std(ddof=1))
+    tail = min(
+        float(np.mean(differences <= 0.0)),
+        float(np.mean(differences >= 0.0)),
+    )
+    p_value = max(2.0 * tail, 2.0 / (n_resamples + 1.0))
+
+    return TestResult(
+        test=f"paired percentile bootstrap ({getattr(statistic, '__name__', 'statistic')})",
+        estimate=observed,
+        ci=ConfidenceInterval(float(low), float(high), 1.0 - alpha),
+        p_value=min(p_value, 1.0),
+        statistic=observed / spread if spread else 0.0,
+        alternative="two-sided",
+        assumptions=(
+            "control[i] and treatment[i] describe the same unit",
+            "units are independent of one another",
+            "the sample is large enough for its empirical distribution to stand "
+            "in for the population one",
+            f"p-value resolution is bounded below by 2/(n_resamples+1) = "
+            f"{2.0 / (n_resamples + 1.0):.2g}",
+        ),
+    )
+
+
+def _paired_bootstrap_differences(
+    control: NDArray[np.float64],
+    treatment: NDArray[np.float64],
+    statistic: Callable[..., NDArray[np.float64]],
+    n_resamples: int,
+    rng: np.random.Generator,
+) -> NDArray[np.float64]:
+    """Bootstrap distribution of the difference, resampling units rather than arms.
+
+    One set of indices is drawn per resample and applied to both arms, which is
+    the whole point: a unit that happens to be extreme enters both sides at once
+    and its contribution cancels.
+    """
+    size = control.size
+    chunk_size = max(1, min(n_resamples, _MAX_CHUNK_ELEMENTS // max(size, 1)))
+    chunks: list[NDArray[np.float64]] = []
+
+    remaining = n_resamples
+    while remaining > 0:
+        drawn = min(chunk_size, remaining)
+        indices = rng.integers(0, size, size=(drawn, size))
+        chunks.append(
+            np.asarray(statistic(treatment[indices], axis=1))
+            - np.asarray(statistic(control[indices], axis=1))
+        )
+        remaining -= drawn
+
+    return np.concatenate(chunks)

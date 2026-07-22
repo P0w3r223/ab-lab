@@ -14,7 +14,13 @@ One vocabulary difference to know about: design functions take
 ``"two-sided"``, ``"less"`` or ``"greater"`` (a p-value does).
 """
 
-from .analyze import bootstrap_diff, mann_whitney, proportion_test, welch_t_test
+from .analyze import (
+    bootstrap_diff,
+    mann_whitney,
+    paired_bootstrap,
+    proportion_test,
+    welch_t_test,
+)
 from .power import (
     cohens_h,
     mde_for_mean,
@@ -35,7 +41,7 @@ from .results import (
 from .sequential import SequentialMonitor, always_valid_p_value, msprt, tau_from_mde
 from .srm import check_srm
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 __all__ = [
     "ConfidenceInterval",
@@ -50,6 +56,7 @@ __all__ = [
     "check_srm",
     "cohens_h",
     "mann_whitney",
+    "paired_bootstrap",
     "mde_for_mean",
     "mde_for_proportion",
     "msprt",
