@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ab-lab"
-version = "0.1.0"
+version = "0.2.0"
 description = "Design and analysis of A/B experiments: power, tests, bootstrap, SRM and sequential peeking correction, validated by simulation."
 readme = "README.md"
 requires-python = ">=3.11"
