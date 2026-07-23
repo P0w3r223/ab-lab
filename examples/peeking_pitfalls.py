@@ -29,6 +29,22 @@ N_EXPERIMENTS = 4_000
 SEED = 20260721
 CHART_PATH = Path(__file__).resolve().parents[1] / "docs" / "images" / "peeking.png"
 
+# --- Chart styling: clean matplotlib aligned with the portfolio page palette. ---
+_ACCENT = "#2563eb"
+_CRITICAL = "#d03b3b"
+_CHART_STYLE = {
+    "figure.facecolor": "white", "axes.facecolor": "white",
+    "axes.edgecolor": "#c3c2b7", "axes.linewidth": 0.8,
+    "axes.spines.top": False, "axes.spines.right": False,
+    "axes.grid": True, "axes.grid.axis": "y", "axes.axisbelow": True,
+    "grid.color": "#e3e7ee", "grid.linewidth": 0.9,
+    "axes.titlesize": 13, "axes.titleweight": "bold", "axes.titlecolor": "#1c2430",
+    "axes.titlepad": 12, "axes.labelcolor": "#667085", "axes.labelsize": 10.5,
+    "text.color": "#1c2430", "xtick.color": "#667085", "ytick.color": "#667085",
+    "xtick.labelsize": 9.5, "ytick.labelsize": 9.5, "font.size": 10.5,
+    "legend.frameon": False, "legend.fontsize": 9.5,
+}
+
 
 def run() -> tuple[list[SimulationSummary], list[SimulationSummary]]:
     """Same data-generating process, same looks, two decision rules."""
@@ -76,23 +92,26 @@ def write_chart(
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
+    plt.rcParams.update(_CHART_STYLE)
     figure, axes = plt.subplots(figsize=(8.0, 4.5))
     axes.plot(
         LOOK_COUNTS, [summary.rejection_rate for summary in fixed_horizon],
-        marker="o", label="Welch t-test, checked repeatedly",
+        marker="o", markersize=6, lw=2.2, color=_CRITICAL,
+        label="Welch t-test, checked repeatedly",
     )
     axes.plot(
         LOOK_COUNTS, [summary.rejection_rate for summary in sequential],
-        marker="s", label="mSPRT (anytime-valid)",
+        marker="s", markersize=6, lw=2.2, color=_ACCENT,
+        label="mSPRT (anytime-valid)",
     )
-    axes.axhline(ALPHA, linestyle="--", linewidth=1, label=f"nominal alpha = {ALPHA}")
+    axes.axhline(ALPHA, linestyle="--", linewidth=1.2, color="#898781",
+                 label=f"nominal alpha = {ALPHA}")
 
     axes.set_xlabel("Number of times the results are checked")
     axes.set_ylabel("False positive rate (A/A experiments)")
     axes.set_title("Peeking turns a 5% test into something else")
     axes.set_ylim(0.0, max(summary.rejection_rate for summary in fixed_horizon) * 1.2)
     axes.legend()
-    axes.grid(alpha=0.3)
     figure.tight_layout()
 
     CHART_PATH.parent.mkdir(parents=True, exist_ok=True)
