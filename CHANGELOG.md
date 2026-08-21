@@ -8,6 +8,27 @@ the project follows [semantic versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added — CUPED
+
+[ADR 0011](docs/decisions/0011-cuped-variance-reduction.md). Every other method
+here is about a test that lies; this one is about a test that is honest and
+expensive.
+
+- `ab_lab.cuped`: `CupedSample`, `cuped_theta`, `cuped_t_test`, returning a
+  `CupedResult` that reports the **realised** variance reduction, the
+  correlation, and what the adjustment is worth in traffic.
+- Measured against the promise `Var(Y_adj) = Var(Y)(1 - rho^2)`: 0.0917 at
+  rho 0.3, 0.2527 at 0.5, 0.4928 at 0.7, 0.8113 at 0.9. A covariate correlated
+  0.7 with the metric is worth **twice the sample**. At the same sample size and
+  a true effect of 0.10, power goes from 51.5% to 91.0% at rho 0.8, with the
+  estimate unmoved.
+- The trap is measured, and an earlier draft described it wrongly. A covariate
+  the experiment touched shrinks the estimate: 35% too small when half the
+  effect leaks, 70% when all of it does. But the rejection rate *collapses* with
+  it, from 80% to 13% — so the failure does not look like success, it looks like
+  a **null result**, which is the more survivable mistake because nobody
+  investigates an experiment that found nothing.
+
 ### Added — ratio metrics
 
 [ADR 0010](docs/decisions/0010-ratio-metrics-delta-method.md). Most metrics

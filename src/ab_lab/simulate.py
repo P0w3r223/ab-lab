@@ -29,9 +29,10 @@ from numpy.typing import NDArray
 from ._validation import check_alpha
 from .analyze import proportion_test, welch_t_test
 from .cluster import ClusteredSample, cluster_robust_t_test
+from .cuped import CupedSample, cuped_t_test
 from .multiplicity import Correction
 from .ratio import RatioSample, ratio_metric_test
-from .results import SimulationSummary
+from .results import SimulationSummary, TestResult
 from .sequential import msprt
 
 Draw = Callable[[np.random.Generator], tuple[NDArray[np.float64], NDArray[np.float64]]]
@@ -56,6 +57,12 @@ SuitePValueFn = Callable[[NDArray[np.float64], NDArray[np.float64]], tuple[float
 #: type stay shared (ADR 0006 D1).
 RatioDraw = Callable[[np.random.Generator], tuple[RatioSample, RatioSample]]
 RatioPValueFn = Callable[[RatioSample, RatioSample], float]
+
+#: CUPED needs the *estimate* each analysis produced, not only its p-value,
+#: because the failure it is checked against is a biased point estimate arriving
+#: with a tighter interval. So this contract returns the whole result.
+CupedDraw = Callable[[np.random.Generator], tuple[CupedSample, CupedSample]]
+CupedTestFn = Callable[[CupedSample, CupedSample], TestResult]
 
 #: What the harness should report as "the effect", given one experiment's data.
 EstimateFn = Callable[[NDArray[np.float64], NDArray[np.float64]], float]
@@ -425,6 +432,93 @@ def run_ratio_experiments(
         control, treatment = draw(rng)
         estimate = treatment.ratio - control.ratio
         tally.record(estimate, _checked_p_value(p_value_fn, control, treatment) < alpha)
+
+    return tally.summarise()
+
+
+def covariate_draw(
+    n_per_group: int,
+    correlation: float,
+    std_dev: float = 1.0,
+    absolute_lift: float = 0.0,
+    treatment_leaks_into_covariate: float = 0.0,
+) -> CupedDraw:
+    """Draw a metric alongside a covariate measured before the experiment.
+
+    Args:
+        correlation: Between the covariate and the metric. The variance CUPED
+            can remove is its square, so this is the whole economics of the
+            technique in one number.
+        treatment_leaks_into_covariate: Fraction of the treatment effect that
+            also shows up in the "pre-experiment" covariate. **Zero is the only
+            honest setting**; anything else is the mistake CUPED invites, and it
+            is a parameter so the mistake can be measured rather than described.
+            A covariate the experiment touched sits on the causal path: adjusting
+            for it subtracts part of the effect along with the noise, so the
+            estimate shrinks toward zero and the experiment reports a null.
+
+    The covariate is standard normal; the metric is that covariate scaled by the
+    correlation plus independent noise, so the marginal variance is ``std_dev**2``
+    whatever the correlation - the same discipline the clustered draw follows, and
+    for the same reason.
+    """
+    if n_per_group < 2:
+        raise ValueError(f"n_per_group must be at least 2, got {n_per_group}")
+    if not -1.0 < correlation < 1.0:
+        raise ValueError(f"correlation must be in (-1, 1), got {correlation}")
+    if std_dev <= 0.0:
+        raise ValueError(f"std_dev must be positive, got {std_dev}")
+
+    explained, unexplained = correlation, np.sqrt(1.0 - correlation**2)
+
+    def one_arm(rng: np.random.Generator, lift: float) -> CupedSample:
+        covariate = rng.normal(0.0, 1.0, n_per_group)
+        noise = rng.normal(0.0, 1.0, n_per_group)
+        metric = std_dev * (explained * covariate + unexplained * noise) + lift
+        observed_covariate = covariate + treatment_leaks_into_covariate * lift
+        return CupedSample(metric=metric, covariate=observed_covariate)
+
+    def draw(rng: np.random.Generator) -> tuple[CupedSample, CupedSample]:
+        return one_arm(rng, 0.0), one_arm(rng, absolute_lift)
+
+    return draw
+
+
+def cuped_test(control: CupedSample, treatment: CupedSample) -> TestResult:
+    """Adapter: the covariate-adjusted test."""
+    return cuped_t_test(control, treatment)
+
+
+def unadjusted_test(control: CupedSample, treatment: CupedSample) -> TestResult:
+    """Adapter: the same experiment analysed without the covariate."""
+    return welch_t_test(control.metric, treatment.metric)
+
+
+def run_cuped_experiments(
+    draw: CupedDraw,
+    test_fn: CupedTestFn,
+    n_experiments: int,
+    rng: np.random.Generator,
+    alpha: float = 0.05,
+    label: str = "covariate-adjusted",
+) -> SimulationSummary:
+    """Run many experiments, recording what each analysis *estimated*.
+
+    The only runner that takes a whole result rather than a p-value, because the
+    failure being checked here is a point estimate shrunk toward zero. A
+    rejection rate alone cannot tell that apart from an experiment that simply
+    had no effect to find, which is exactly what makes the mistake survivable.
+    """
+    _check_run(n_experiments, alpha)
+    tally = _Tally(n_experiments, alpha, label)
+
+    for _ in range(n_experiments):
+        control, treatment = draw(rng)
+        result = test_fn(control, treatment)
+        p_value = float(result.p_value)
+        if not np.isfinite(p_value):
+            raise ValueError(f"{result.test} returned a non-finite p-value")
+        tally.record(float(result.estimate), p_value < alpha)
 
     return tally.summarise()
 
