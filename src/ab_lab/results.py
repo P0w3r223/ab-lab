@@ -149,6 +149,31 @@ class SampleSizeResult:
 
 
 @dataclass(frozen=True)
+class RatioTestResult(TestResult):
+    """A difference of two ratios of totals.
+
+    Carries both arms' ratios rather than only their difference, because a ratio
+    metric is the case where the absolute difference is least readable on its
+    own: 0.004 means one thing on a 2% click-through rate and another on a 40%
+    one. ``relative_effect`` is the difference over the control ratio - the
+    "+20%" a business actually discusses - and it is reported beside the
+    absolute figure rather than instead of it, since a relative lift on a tiny
+    baseline is how small effects get oversold.
+    """
+
+    control_ratio: float
+    treatment_ratio: float
+    relative_effect: float
+    n_clusters_control: int
+    n_clusters_treatment: int
+    df: float
+
+    @property
+    def n_clusters(self) -> int:
+        return self.n_clusters_control + self.n_clusters_treatment
+
+
+@dataclass(frozen=True)
 class ClusteredSampleSizeResult:
     """Required sample size when each unit contributes several observations.
 

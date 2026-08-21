@@ -20,6 +20,9 @@ src/ab_lab/
   analyze.py     # post-hoc: Welch, two-proportion z, Mann-Whitney, bootstrap
   srm.py         # sample ratio mismatch (chi-square on the allocation)
   sequential.py  # mSPRT: anytime-valid p-values, SequentialMonitor
+  cluster.py     # repeated measurements per unit: CR1 sandwich, design effect
+  multiplicity.py # many metrics: Bonferroni, Holm, Benjamini-Hochberg
+  ratio.py       # ratios of two totals: the delta method over cluster.py
   simulate.py    # draws + p-value adapters + the A/A / A/B / peeking harness
 sitegen/         # renders the page, the README tables and the SVG charts
   record.py      #   the committed evidence: counts in, SimulationSummary out
