@@ -50,6 +50,7 @@ ruff check .                                    # lint
 python examples/validation_table.py             # print the validation table
 python examples/peeking_pitfalls.py             # print the peeking table
 python examples/three_inflations.py             # print the other two
+python examples/ecommerce_case_study.py         # one experiment, end to end
 
 # Re-measure and republish. The scripts cost minutes; the build costs milliseconds.
 python examples/peeking_pitfalls.py --record    # rewrite docs/data/findings.json

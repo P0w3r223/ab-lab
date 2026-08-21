@@ -6,7 +6,29 @@ Notable changes to `ab-lab`. The reasoning behind each decision lives in
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 the project follows [semantic versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.4.0] — 2026-08-21
+
+0.3.0 was about tests that lie. This release is about affording an answer, and
+about the metrics people actually have. It also empties the roadmap this README
+has carried since 0.1.
+
+### Added — a worked case study that ends in a decision
+
+`examples/ecommerce_case_study.py`. One checkout experiment analysed end to end,
+in the order the methods go in, on the commonest genuine dilemma in e-commerce
+testing: a change that makes **more** people buy **cheaper** things.
+
+Conversion resolves (+0.67pp against a true +0.6). Average order value resolves
+(−5.9% against a true −6.0%). Revenue per user — the only metric the decision
+depends on — does not, and its interval spans −2 453 to +89 343 across an arm.
+The script's conclusion is not "ship" or "do not ship" but that the experiment
+was never sized to answer the question, which was knowable before launch.
+
+Two things it reports rather than hides: CUPED bought 1.8% here, because revenue
+per user is 95% zeros and last month's spending cannot predict the conversion
+lottery; and writing the script surfaced a real instance of the collider trap
+from ADR 0011, when its first draft built last month's revenue *out of* this
+month's and CUPED duly reported +0.078 where the raw difference was +0.50.
 
 ### Added — CUPED
 
