@@ -6,11 +6,23 @@ Notable changes to `ab-lab`. The reasoning behind each decision lives in
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 the project follows [semantic versioning](https://semver.org/).
 
-## [Unreleased] — 0.3.0.dev0
+## [0.3.0] — 2026-08-21
 
-Foundations for the 0.3.0 release described in
-[ADR 0006](docs/decisions/0006-three-mechanisms-of-alpha-inflation.md). No
-statistical method changed; every published number is unchanged.
+**A 5% test is only 5% if you look once, count each user once, and test one
+metric.** Three mechanisms, measured on A/A data where there is no effect to
+find, each with the correction that puts the rate back:
+
+| At its worst | Nominal | Measured | Correction | After |
+|---|---|---|---|---|
+| 20 times the results are checked | 5% | **25.3%** | mSPRT | 1.2% |
+| 20 rows per user | 5% | **44.0%** | cluster-robust SE | 5.6% |
+| 20 metrics measured at once | 5% | **65.7%** | Holm | 4.9% |
+
+Three independent routes to one conclusion. The derivations for the second and
+third were written into [ADR 0006](docs/decisions/0006-three-mechanisms-of-alpha-inflation.md)
+*before their code existed*, so the simulation had something falsifiable to
+contradict; at the ten-unit setting they landed 1.4 and 0.5 Monte Carlo sigmas
+from the measurements.
 
 ### Added — multiplicity control
 

@@ -56,6 +56,30 @@ def _bold_rate(summary: SimulationSummary) -> str:
     return f"**{percent(summary.rejection_rate)}** (±{percent(summary.monte_carlo_error)})"
 
 
+def mechanisms_table(findings: list[Finding]) -> str:
+    """All the findings in one table: each mechanism at its worst, and corrected.
+
+    This is the claim in five columns. Generated rather than written, because a
+    summary of numbers that live elsewhere is precisely the thing that drifts -
+    and it drifted here once already, in a table the README used to keep by hand.
+    """
+    rows = [
+        "| At its worst | Nominal | Measured | Correction | After |",
+        "|---|---|---|---|---|",
+    ]
+    for finding in findings:
+        naive = finding.series_by_role("naive")
+        corrected = finding.series_by_role("corrected")
+        worst_index = naive.rates.index(max(naive.rates))
+        where = f"{finding.x_values[worst_index]:g} {finding.x_label.lower()}"
+        rows.append(
+            f"| {where} | {percent(finding.nominal, 0)} "
+            f"| **{percent(naive.rates[worst_index])}** | {corrected.name} "
+            f"| {percent(corrected.rates[worst_index])} |"
+        )
+    return "\n".join(rows)
+
+
 def validation_table(validation: Validation) -> str:
     """Each row is a falsifiable claim, and the verdict comes from the summary."""
     rows = [

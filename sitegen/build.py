@@ -43,6 +43,7 @@ def readme(record: Record, current: str) -> str:
     """
     peeking = record.findings["peeking"]
     blocks = {
+        "mechanisms": markdown.mechanisms_table(page.ordered_findings(record)),
         "peeking-preamble": markdown.finding_preamble(peeking),
         "peeking": markdown.finding_table(peeking),
     }
