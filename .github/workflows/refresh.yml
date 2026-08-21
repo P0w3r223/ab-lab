@@ -1,0 +1,36 @@
+name: Drift check
+
+# The published page is built from a committed record, which means it can be
+# right about what was measured and wrong about what the code does now. The
+# cheap guards on every pull request cannot catch that: they replay two cells at
+# a tenth of their size, which finds a broken method and not a two-point drift.
+# This job re-measures everything at full size once a week.
+#
+# It compares *rates within Monte Carlo error*, never bytes. numpy guarantees
+# stream stability for RandomState and not for Generator, so a legitimate numpy
+# release may move the stream; a byte-exact nightly would go red for a reason
+# that is not a defect.
+#
+# It does not publish. Nothing here rewrites the page - a human re-records and
+# rebuilds when the numbers actually change.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1"
+  workflow_dispatch:
+
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install (core + dev)
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+      - name: Re-measure every recorded finding at full size
+        run: pytest -m slow -q

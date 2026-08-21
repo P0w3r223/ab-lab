@@ -2,8 +2,29 @@
 
 [![CI](https://github.com/P0w3r223/ab-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/P0w3r223/ab-lab/actions/workflows/ci.yml)
 
-**Designing and analysing A/B experiments — power, tests, bootstrap, SRM and a
-sequential test — with every method validated by simulation.**
+**A 5% test is only 5% if you look once, count each user once, and test one
+metric.**
+
+This package measures what each of those three costs — on A/A experiments where
+there is no effect to find — and implements the correction for each.
+**[Live page →](https://p0w3r223.github.io/ab-lab/)**
+
+Each mechanism at its worst, on A/A data where there is no effect to find:
+
+<!-- generated:mechanisms -->
+| At its worst | Nominal | Measured | Correction | After |
+|---|---|---|---|---|
+| 20 times the results are checked | 5% | **25.3%** | mSPRT (anytime-valid) | 1.2% |
+| 20 rows per user | 5% | **44.0%** | Cluster-robust standard error | 5.6% |
+| 20 metrics measured at once | 5% | **65.7%** | Holm | 4.9% |
+<!-- /generated:mechanisms -->
+
+Three independent routes to the same conclusion, which is what makes it a
+finding rather than an anecdote
+([ADR 0006](docs/decisions/0006-three-mechanisms-of-alpha-inflation.md)). Every
+figure in this README between `generated:` markers is written by
+`python -m sitegen.build` from `docs/data/findings.json`, and a test fails if the
+committed bytes stop matching.
 
 Most A/B mistakes are not coding mistakes. They are an experiment sized for an
 effect nobody would act on, a "significant" result read off a dashboard on day
@@ -21,9 +42,11 @@ them would defeat it ([ADR 0001](docs/decisions/0001-no-statsmodels-at-runtime.m
 Checking a fixed-horizon test repeatedly and stopping at the first significant
 reading does not reach the answer faster. It changes the test:
 
-A/A experiments — **no true effect at all** — with 2 000 units per arm, alpha
-0.05, 4 000 runs per cell:
+<!-- generated:peeking-preamble -->
+A/A experiments - **no true effect at all** - with 2,000 units per arm, alpha 0.05, 4,000 runs per cell:
+<!-- /generated:peeking-preamble -->
 
+<!-- generated:peeking -->
 | Times the results are checked | Welch t-test (fixed horizon) | mSPRT (anytime-valid) |
 |---|---|---|
 | 1 | 4.9% (±0.3%) | 0.2% (±0.1%) |
@@ -34,6 +57,7 @@ A/A experiments — **no true effect at all** — with 2 000 units per arm, alph
 | 10 | 18.4% (±0.6%) | 1.2% (±0.2%) |
 | 14 | 22.2% (±0.7%) | 1.2% (±0.2%) |
 | 20 | **25.3%** (±0.7%) | 1.2% (±0.2%) |
+<!-- /generated:peeking -->
 
 Checked once, the test does what it says: 4.9% against a nominal 5%. Checked
 twenty times — a fortnight of glancing at a dashboard morning and evening —
@@ -46,10 +70,17 @@ precisely on the noisy excursions: mean |effect| of 0.175 when peeking against
 Both numbers are false positives; the peeked one claims to be more than twice
 as large.
 
-![False positive rate against the number of looks](docs/images/peeking.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/peeking-dark.svg">
+  <img alt="False positive rate against the number of looks: the fixed-horizon test climbs
+  from 5% to 25% while the anytime-valid one stays near 1%"
+  src="docs/images/peeking-light.svg">
+</picture>
 
 Same data, same alpha, same schedule of looks — the only difference is the
-decision rule. Reproduce with `python examples/peeking_pitfalls.py --plot`.
+decision rule. The chart is generated SVG rather than an image file, so it
+follows the reader's colour scheme and every coordinate in it comes from the
+committed record. Reproduce with `python examples/peeking_pitfalls.py`.
 
 ## How do I know this code is right?
 
@@ -58,16 +89,19 @@ arithmetic (in `tests/`), and against a simulated world where the truth is
 known. The second table is the one that matters, because it tests the choice of
 formula and not just its transcription:
 
-10 000 simulated experiments per row, seed 20260721. "MC error" is the standard
-error of the empirical rate — the noise floor of the run itself:
+<!-- generated:validation-preamble -->
+10,000 simulated experiments per row, seed 20260721. "MC error" is the standard error of the empirical rate - the noise floor of the run itself:
+<!-- /generated:validation-preamble -->
 
+<!-- generated:validation -->
 | Scenario | Claim | Empirical | MC error | Verdict |
 |---|---|---|---|---|
 | Welch t-test, A/A (no effect) | = 0.0500 | 0.0538 | ±0.0023 | pass |
 | Two-proportion z-test, A/A (no effect) | = 0.0500 | 0.0497 | ±0.0022 | pass |
 | Welch t-test, A/B (d = 0.2, n = 400) | = 0.8065 | 0.8077 | ±0.0039 | pass |
-| Sample size solved for 80% power (n = 14 745/arm) | = 0.8000 | 0.7929 | ±0.0041 | pass |
+| Sample size solved for 80% power (n = 14,745/arm) | = 0.8000 | 0.7929 | ±0.0041 | pass |
 | mSPRT, A/A with 10 looks (anytime-valid) | ≤ 0.0500 | 0.0110 | ±0.0010 | pass |
+<!-- /generated:validation -->
 
 Note the last row's claim. A fixed-horizon test promises its false positive
 rate *equals* alpha; an anytime-valid test promises only that it stays *at
@@ -96,7 +130,7 @@ design = sample_size_for_proportion(baseline_rate=0.10, mde=0.01, power=0.8)
 print(design.per_group)          # 14745 users per arm to see 10.0% -> 11.0%
 
 # The question worth asking when that number is unaffordable:
-print(mde_for_proportion(n_per_group=5_000, baseline_rate=0.10))   # 0.0174
+print(mde_for_proportion(n_per_group=5_000, baseline_rate=0.10).mde)   # 0.0174
 # ...at 5k per arm nothing under a 1.74pp lift is visible at all.
 ```
 
@@ -141,6 +175,52 @@ from ab_lab.analyze import paired_bootstrap
 paired = paired_bootstrap(before, after)   # between-unit variance cancels
 ```
 
+**When a user appears more than once** — is 5 000 sessions really 5 000
+observations?
+
+```python
+from ab_lab.cluster import ClusteredSample, cluster_robust_t_test
+
+control = ClusteredSample.from_arrays(session_values, user_ids)
+treatment = ClusteredSample.from_arrays(other_values, other_user_ids)
+
+result = cluster_robust_t_test(control, treatment)
+# Illustrative, since the numbers depend on your data: at a design effect of 3.7
+# a naive interval was sqrt(3.7) too narrow, and 5 000 rows are worth 1 351
+# independent observations.
+print(result.design_effect, result.effective_n)
+print(result.n_clusters)      # below ~40 the estimator is anti-conservative
+
+# And before the experiment, so it is not under-powered on day one:
+from ab_lab.cluster import sample_size_for_clustered_mean
+
+design = sample_size_for_clustered_mean(
+    mde=0.1, std_dev=1.0, icc=0.3, mean_cluster_size=10
+)
+print(design.n_clusters_per_group)          # 582 users per arm, not 158
+print(design.extra_units_clustering_costs)  # what ignoring it would have cost
+```
+
+**When the experiment has more than one metric** — which of these results
+survive being asked all at once?
+
+```python
+from ab_lab.multiplicity import holm
+
+family = holm(
+    [signups.p_value, revenue.p_value, latency.p_value, churn.p_value],
+    labels=["signups", "revenue", "latency", "churn"],
+)
+print(family.error_rate_controlled)   # 'family-wise error rate' - which promise this is
+print(family.for_label("revenue"))    # (adjusted p-value, verdict)
+print(family.n_rejected)              # how many survive being asked together
+```
+
+Naming the members is the point: a correction applied to some of the metrics
+while the rest are read raw controls nothing. `benjamini_hochberg` is also
+available and controls a *different* thing — the expected share of the
+rejections that are false, not the chance of there being one.
+
 ## Architecture
 
 ```
@@ -150,7 +230,12 @@ src/ab_lab/
   analyze.py     # post-hoc: Welch, two-proportion z, Mann-Whitney, bootstrap (paired and not)
   srm.py         # sample ratio mismatch (chi-square on the allocation)
   sequential.py  # mSPRT: anytime-valid p-values, SequentialMonitor
+  cluster.py     # repeated measurements per user: CR1 sandwich, design effect,
+                 # and the sample size that accounts for it
+  multiplicity.py # many metrics at once: Bonferroni, Holm, Benjamini-Hochberg
   simulate.py    # draws + p-value adapters + the A/A / A/B / peeking harness
+sitegen/         # renders the page, the tables above and the chart, from
+                 # docs/data/findings.json — never simulates, never guesses
 ```
 
 The library never prints and never plots — it returns data. Every table above is
@@ -169,15 +254,20 @@ README are assertions in `tests/`. Rendering lives in `examples/`.
 
 ## What this package will not do for you
 
-- **It assumes independent units.** Metrics with repeated measurements per user
-  (sessions, orders) violate that; the variance is understated and every
-  interval here is too narrow. Cluster-robust variance is not implemented.
+- **Independence is now optional, but you have to ask for it.** The default
+  tests assume one observation per unit. Metrics with repeated measurements per
+  user (sessions, orders) violate that, and analysed row by row they reject
+  32.3% of the time under a true null instead of 5%. `ab_lab.cluster` fixes it —
+  but nothing detects the situation for you, and a cluster-robust standard error
+  is itself anti-conservative below about forty clusters per arm.
 - **The mSPRT is conservative.** Measured false positive rate under ten looks is
   around 1.2% against a nominal 5%. Validity is bought with power, and a
   correctly executed group-sequential design would stop sooner.
-- **No multiple-comparison correction across metrics.** Testing one experiment
-  against fifteen metrics inflates the error rate the same way peeking does;
-  this package measures the peeking case and does not yet cover the other.
+- **Nothing decides what "the family" is.** `ab_lab.multiplicity` corrects across
+  a set of metrics, but which metrics belong in one family is a judgement, not a
+  computation — and correcting a subset while reading the rest uncorrected
+  controls nothing at all. The library makes you name the members; it cannot
+  make that the right list.
 - **The bootstrap's p-value has a floor** of `2/(n_resamples+1)`. A "p < 0.001"
   read off a 1 000-resample bootstrap is an artefact.
 - **Normal approximations are used for proportions** and are unreliable at very
@@ -195,11 +285,10 @@ README are assertions in `tests/`. Rendering lives in `examples/`.
 
 Tracked as issues labelled `roadmap`:
 
-1. Cluster-robust variance for repeated measurements per user.
-2. CUPED variance reduction using a pre-experiment covariate.
+1. CUPED variance reduction using a pre-experiment covariate.
+2. Ratio metrics via the delta method, reusing the cluster-robust variance.
 3. A worked e-commerce case study: conversion and average order value together,
    ending in a business decision rather than a p-value.
-4. Multiple-comparison control across a metric suite.
 
 ## License
 
