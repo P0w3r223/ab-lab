@@ -185,7 +185,16 @@ def write_section(section: str, payload: dict[str, Any], path: Path = RECORD_PAT
     document: dict[str, Any] = {"schema_version": SCHEMA_VERSION}
     if path.exists():
         document = json.loads(path.read_text(encoding="utf-8"))
-        document["schema_version"] = SCHEMA_VERSION
+        existing_version = document.get("schema_version")
+        # `load` refuses a version it does not understand; the writer used to
+        # silently relabel one, which would turn an unreadable record into a
+        # readable-looking one carrying fields from another schema.
+        if existing_version != SCHEMA_VERSION:
+            raise ValueError(
+                f"{path} is schema version {existing_version}; this writer produces "
+                f"version {SCHEMA_VERSION}. Re-record the whole file rather than "
+                f"mixing schemas in one document."
+            )
     document[section] = payload
 
     path.parent.mkdir(parents=True, exist_ok=True)

@@ -68,17 +68,26 @@ class CupedSample:
     metric: NDArray[np.float64]
     covariate: NDArray[np.float64]
 
+    def __post_init__(self) -> None:
+        """Validate on every path in, not only through :meth:`from_arrays`."""
+        as_sample(self.metric, "metric")
+        as_sample(self.covariate, "covariate")
+        if self.metric.shape != self.covariate.shape:
+            raise ValueError(
+                f"metric has shape {self.metric.shape}, covariate has "
+                f"{self.covariate.shape}; they must describe the same units"
+            )
+
     @classmethod
     def from_arrays(cls, metric: ArrayLike, covariate: ArrayLike) -> CupedSample:
-        """Validate and coerce. ``covariate[i]`` describes the same unit as ``metric[i]``."""
-        values = as_sample(metric, "metric")
-        prior = as_sample(covariate, "covariate")
-        if values.shape != prior.shape:
-            raise ValueError(
-                f"metric has shape {values.shape}, covariate has {prior.shape}; "
-                f"they must describe the same units"
-            )
-        return cls(metric=values, covariate=prior)
+        """Coerce anything array-like, then construct - which validates.
+
+        ``covariate[i]`` describes the same unit as ``metric[i]``.
+        """
+        return cls(
+            metric=np.asarray(metric, dtype=np.float64),
+            covariate=np.asarray(covariate, dtype=np.float64),
+        )
 
 
 def cuped_theta(control: CupedSample, treatment: CupedSample) -> float:
@@ -157,7 +166,16 @@ def cuped_t_test(
             "treatment effect",
             "randomisation balanced the covariate across arms; check the sample "
             "ratio if the adjusted and unadjusted estimates disagree",
-            *welch_t_test(control.metric, treatment.metric, alpha, alternative).assumptions,
+            # Spelled out rather than fetched by running the unadjusted test a
+            # second time. That doubled the work on every call, and it could
+            # raise where the adjusted test succeeds: a metric constant within
+            # each arm but differing between them leaves the *adjusted* arms with
+            # variance, so this function returns a result while the second call
+            # was reporting "both groups are constant" about it.
+            "observations are independent within and across groups",
+            "group means are approximately normal (CLT: fine for large n, "
+            "fragile for heavy-tailed metrics like revenue at small n)",
+            "variances may differ between groups",
         ),
         theta=theta,
         correlation=correlation,

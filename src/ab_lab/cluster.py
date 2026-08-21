@@ -63,24 +63,38 @@ class ClusteredSample:
     values: NDArray[np.float64]
     cluster_ids: NDArray[np.int64]
 
-    @classmethod
-    def from_arrays(cls, values: ArrayLike, cluster_ids: ArrayLike) -> ClusteredSample:
-        """Validate and coerce. ``cluster_ids[i]`` names the unit ``values[i]`` came from."""
-        observations = np.asarray(values, dtype=np.float64)
-        units = np.asarray(cluster_ids)
-        if observations.ndim != 1:
-            raise ValueError(f"values must be one-dimensional, got shape {observations.shape}")
-        if units.shape != observations.shape:
+    def __post_init__(self) -> None:
+        """Validate on every path in, not only through :meth:`from_arrays`.
+
+        The dataclass constructor is public and exported, so validating in the
+        classmethod alone made this class's own docstring false. A NaN handed
+        straight to ``ClusteredSample(...)`` produced a NaN p-value, which
+        compares ``False`` against alpha and reads as "not significant" - the
+        exact failure ``_validation.as_sample`` names and ``_checked_p_value``
+        exists to refuse.
+        """
+        if self.values.ndim != 1:
+            raise ValueError(f"values must be one-dimensional, got shape {self.values.shape}")
+        if self.cluster_ids.shape != self.values.shape:
             raise ValueError(
-                f"cluster_ids has shape {units.shape}, values has {observations.shape}"
+                f"cluster_ids has shape {self.cluster_ids.shape}, "
+                f"values has {self.values.shape}"
             )
-        if not np.all(np.isfinite(observations)):
+        if not np.all(np.isfinite(self.values)):
             raise ValueError("values contains NaN or infinite values")
-        if not np.issubdtype(units.dtype, np.integer):
+        if not np.issubdtype(self.cluster_ids.dtype, np.integer):
             # Strings and floats both work as labels, but silently accepting a
             # float id invites 1.0000001 and 1.0 becoming two users.
-            raise ValueError(f"cluster_ids must be integers, got dtype {units.dtype}")
-        return cls(values=observations, cluster_ids=units.astype(np.int64))
+            raise ValueError(f"cluster_ids must be integers, got dtype {self.cluster_ids.dtype}")
+
+    @classmethod
+    def from_arrays(cls, values: ArrayLike, cluster_ids: ArrayLike) -> ClusteredSample:
+        """Coerce anything array-like, then construct - which validates."""
+        units = np.asarray(cluster_ids)
+        return cls(
+            values=np.asarray(values, dtype=np.float64),
+            cluster_ids=units.astype(np.int64) if np.issubdtype(units.dtype, np.integer) else units,
+        )
 
     @property
     def n_clusters(self) -> int:
@@ -198,7 +212,24 @@ def design_effect(cluster_sizes: ArrayLike | float, icc: float) -> float:
     if np.any(sizes < 1.0):
         raise ValueError("cluster sizes must be at least 1")
     weighted_mean = float(np.sum(sizes**2) / np.sum(sizes))
-    return 1.0 + (weighted_mean - 1.0) * icc
+    effect = 1.0 + (weighted_mean - 1.0) * icc
+
+    # A negative intraclass correlation is a real sampling outcome that
+    # `intraclass_correlation` returns unclipped, and pairing one with a
+    # size-weighted mean large enough to overwhelm it produces a *negative*
+    # variance-inflation factor - which this function's own docstring says is
+    # "how many times larger clustering makes the variance". Unbalanced clusters
+    # reach it easily, because the ICC's floor is set by the plain mean size
+    # while this formula uses the weighted one. Refusing is the only honest
+    # answer: the two inputs are describing different populations.
+    if effect <= 0.0:
+        raise ValueError(
+            f"icc={icc:g} and a size-weighted mean cluster size of {weighted_mean:g} "
+            f"give a design effect of {effect:g}, which is not a variance ratio. A "
+            f"negative icc large enough to do this usually means the clusters were "
+            f"defined by the wrong column."
+        )
+    return effect
 
 
 def cluster_robust_t_test(
@@ -256,8 +287,13 @@ def cluster_robust_t_test(
         control.values.var(ddof=1) / control.values.size
         + treatment.values.var(ddof=1) / treatment.values.size
     )
+    # Compare like with like: the *uncorrected* sandwich against the independence
+    # variance. Dividing the CR1-corrected number by an uncorrected one inflates
+    # the reported design effect by the finite-sample factor itself - immaterial
+    # at four hundred clusters and visible at ten, which is exactly the regime
+    # this result's own "anti-conservative below forty" caveat points at.
     realised_design_effect = (
-        variance / independence_variance if independence_variance > 0.0 else math.inf
+        uncorrected / independence_variance if independence_variance > 0.0 else math.inf
     )
 
     df = float(n_clusters - 2)
@@ -334,14 +370,19 @@ def sample_size_for_clustered_mean(
     inflation = 1.0 + (mean_cluster_size - 1.0) * icc
     observations = independent * inflation
     n_clusters = math.ceil(observations / mean_cluster_size)
+    # `independent` is the *control* arm, so an uneven split needs its own count
+    # rather than the same number twice.
+    n_clusters_treatment = math.ceil(observations * ratio / mean_cluster_size)
 
     return ClusteredSampleSizeResult(
         n_clusters_per_group=n_clusters,
+        n_clusters_treatment=n_clusters_treatment,
         per_group=n_clusters * mean_cluster_size,
         independent_per_group=independent,
         design_effect=inflation,
         icc=icc,
         mean_cluster_size=mean_cluster_size,
+        ratio=ratio,
         mde=mde,
         alpha=alpha,
         power=power,

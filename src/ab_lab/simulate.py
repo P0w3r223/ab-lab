@@ -327,6 +327,7 @@ def clustered_ratio_draw(
     rate_dispersion: float = 0.0,
     absolute_lift: float = 0.0,
     lift_scales_with_exposure: bool = False,
+    rows_per_cluster: int = 1,
 ) -> RatioDraw:
     """Draw a click-through-rate-like metric: successes over trials, per unit.
 
@@ -350,6 +351,14 @@ def clustered_ratio_draw(
             ratio of totals and the mean of per-unit ratios agree to the fourth
             decimal and the two analyses have the same power. Correlate the two
             and they answer different questions.
+        rows_per_cluster: How many rows each unit's trials are split across. One
+            row per unit - the default, and what every early version of this draw
+            produced - leaves ``n_observations == n_clusters``, so the *sandwich*
+            half of :func:`~ab_lab.ratio.ratio_metric_test` is never exercised:
+            each cluster total is a single row and the estimator has nothing to
+            aggregate. Above one, rows within a unit share that unit's rate and
+            are therefore correlated, which is the case the cluster-robust part
+            exists for.
 
     Each unit gets its own rate, then binomial trials at that rate - so outcomes
     are correlated within a unit and heterogeneous across units, which is the
@@ -363,6 +372,8 @@ def clustered_ratio_draw(
         raise ValueError(f"base_rate must be in (0, 1), got {base_rate}")
     if rate_dispersion < 0.0:
         raise ValueError(f"rate_dispersion must be non-negative, got {rate_dispersion}")
+    if rows_per_cluster < 1:
+        raise ValueError(f"rows_per_cluster must be at least 1, got {rows_per_cluster}")
 
     def one_arm(rng: np.random.Generator, lift: float, first_id: int) -> RatioSample:
         trials = (
@@ -380,11 +391,22 @@ def clustered_ratio_draw(
         elif lift:
             drawn = drawn + lift
         per_unit = np.clip(drawn, 1e-6, 1.0 - 1e-6)
-        successes = rng.binomial(trials, per_unit).astype(np.float64)
-        ids = np.arange(n_clusters_per_group, dtype=np.int64) + first_id
+
+        # Split each unit's trials across its rows as evenly as the integers
+        # allow, then draw each row at that unit's own rate. Rows within a unit
+        # are correlated through the shared rate, which is what the sandwich has
+        # to survive.
+        base, remainder = np.divmod(trials, rows_per_cluster)
+        row_index = np.arange(rows_per_cluster)[None, :]
+        row_trials = (base[:, None] + (row_index < remainder[:, None])).ravel()
+        row_rates = np.repeat(per_unit, rows_per_cluster)
+        successes = rng.binomial(row_trials, row_rates).astype(np.float64)
+        ids = np.repeat(
+            np.arange(n_clusters_per_group, dtype=np.int64) + first_id, rows_per_cluster
+        )
         return RatioSample(
             numerator=successes,
-            denominator=trials.astype(np.float64),
+            denominator=row_trials.astype(np.float64),
             cluster_ids=ids,
         )
 

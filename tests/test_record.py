@@ -34,7 +34,7 @@ from ab_lab.simulate import (
     run_experiments,
     welch_p_value,
 )
-from examples import peeking_pitfalls, validation_table
+from examples import peeking_pitfalls, three_inflations, validation_table
 from sitegen import record
 
 #: Replays are small, so the band has to be generous or the suite becomes flaky.
@@ -133,3 +133,49 @@ def test_a_small_replay_still_finds_the_recorded_welch_type_i_error(evidence):
         alpha=validation_table.ALPHA,
     )
     assert _credible(recorded, replayed)
+
+
+#: Which module's constants each recording script owns.
+RECORDING_SCRIPTS = {
+    "examples/peeking_pitfalls.py": peeking_pitfalls,
+    "examples/validation_table.py": validation_table,
+    "examples/three_inflations.py": three_inflations,
+}
+
+
+def test_every_recorded_finding_names_a_script_that_still_exists(evidence):
+    """G2, widened. It used to check peeking and validation by name.
+
+    `clustering` and `multiplicity` - two of the three sections on the page -
+    had no design check at all, so every constant in `three_inflations.py` could
+    be edited without a single test noticing the page now quoted an older run.
+    Parametrising over the record means a fourth finding is covered the day it
+    is added rather than the day someone remembers.
+    """
+    for finding in evidence.findings.values():
+        script = finding.recorded["script"]
+        assert script in RECORDING_SCRIPTS, f"{finding.key} names an unknown script: {script}"
+        assert (record.ROOT / script).exists(), f"{script} is recorded but missing"
+
+
+def test_every_recorded_finding_agrees_with_its_script_constants(evidence):
+    for finding in evidence.findings.values():
+        module = RECORDING_SCRIPTS[finding.recorded["script"]]
+        assert finding.design["seed"] == module.SEED, f"{finding.key}: seed drifted"
+        assert finding.design["alpha"] == module.ALPHA, f"{finding.key}: alpha drifted"
+        assert finding.nominal == module.ALPHA
+
+
+def test_the_three_inflations_findings_match_that_script_exactly(evidence):
+    clustering = evidence.findings["clustering"]
+    assert clustering.design["n_experiments"] == three_inflations.CLUSTER_EXPERIMENTS
+    assert clustering.design["rows_per_user"] == three_inflations.ROWS_PER_USER
+    assert clustering.design["icc"] == three_inflations.ICC
+    assert clustering.design["n_clusters_per_group"] == three_inflations.CLUSTERS_PER_ARM
+    assert [int(x) for x in clustering.x_values] == three_inflations.ROWS_PER_USER
+
+    suite = evidence.findings["multiplicity"]
+    assert suite.design["n_experiments"] == three_inflations.SUITE_EXPERIMENTS
+    assert suite.design["metric_counts"] == three_inflations.METRIC_COUNTS
+    assert suite.design["n_per_group"] == three_inflations.UNITS_PER_ARM
+    assert [int(x) for x in suite.x_values] == three_inflations.METRIC_COUNTS

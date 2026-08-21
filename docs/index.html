@@ -424,11 +424,17 @@ footer { color: var(--muted); font-size: 0.85rem; margin-top: 2.5rem; }
 
 <footer>
   <p>Every figure on this page is interpolated from
-  <a href="data/findings.json">docs/data/findings.json</a>, recorded
-  2026-08-21 by <code>examples/three_inflations.py</code> at seed
-  20260821 on ab-lab 0.3.0.dev0, numpy
-  2.5.1. Nothing here was typed by hand, and a test compares the
-  committed bytes of this page against what the generator produces.</p>
+  <a href="data/findings.json">docs/data/findings.json</a>. Nothing here was typed by
+  hand, and a test compares the committed bytes of this page against what the generator
+  produces. The figures come from more than one run, so each one says which:</p>
+  <div class="scroll">
+  <table>
+    <tr><th>Script</th><th>Seed</th><th>Recorded</th><th>ab-lab</th><th>What it produced</th></tr>
+    <tr><td><code>examples/peeking_pitfalls.py</code></td><td>20260721</td><td>2026-08-21</td><td>0.3.0.dev0</td><td>the cost of looking early</td></tr>
+    <tr><td><code>examples/three_inflations.py</code></td><td>20260821</td><td>2026-08-21</td><td>0.3.0.dev0</td><td>the cost of counting a user more than once; the cost of asking more than one question</td></tr>
+    <tr><td><code>examples/validation_table.py</code></td><td>20260721</td><td>2026-08-21</td><td>0.3.0.dev0</td><td>the validation table</td></tr>
+  </table>
+</div>
   <p><a href="decisions/0001-no-statsmodels-at-runtime.md">ADR 0001</a> statsmodels is a test oracle, not a dependency · <a href="decisions/0003-msprt-over-group-sequential.md">ADR 0003</a> mSPRT rather than group-sequential boundaries · <a href="decisions/0006-three-mechanisms-of-alpha-inflation.md">ADR 0006</a> one claim measured three ways · <a href="decisions/0008-cluster-robust-variance.md">ADR 0008</a> cluster-robust variance · <a href="decisions/0009-multiplicity-control.md">ADR 0009</a> three corrections, two guarantees · <a href="decisions/0007-the-page-is-generated.md">ADR 0007</a> the page is generated from a committed record</p>
   <p>Portfolio project P2 · <a href="https://github.com/P0w3r223/ab-lab">source on GitHub</a></p>
 </footer>

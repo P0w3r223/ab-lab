@@ -200,3 +200,26 @@ def test_one_cluster_per_arm_is_refused_rather_than_estimated():
     treatment = ClusteredSample.from_arrays([4.0, 5.0, 6.0], [8, 8, 8])
     with pytest.raises(ValueError, match="at least 2 clusters"):
         cluster_robust_t_test(control, treatment)
+
+
+@pytest.mark.parametrize(
+    ("values", "ids", "message"),
+    [
+        (np.array([1.0, np.nan]), np.array([0, 1]), "NaN"),
+        (np.array([1.0, 2.0]), np.array([0.5, 1.5]), "integers"),
+        (np.array([[1.0, 2.0]]), np.array([[0, 1]]), "one-dimensional"),
+        (np.array([1.0, 2.0, 3.0]), np.array([0, 1]), "shape"),
+    ],
+)
+def test_the_constructor_validates_as_well_as_the_classmethod(values, ids, message):
+    """`from_arrays` is not the only way in, and for two releases it was the only
+    way guarded.
+
+    The dataclass constructor is public and exported. A NaN handed straight to
+    it produced a NaN p-value, which compares False against alpha and reads as
+    "not significant" - the exact failure `_validation.as_sample` names and
+    `_checked_p_value` refuses. The class docstring said it validated at
+    construction; now it does.
+    """
+    with pytest.raises(ValueError, match=message):
+        ClusteredSample(values=values, cluster_ids=ids)

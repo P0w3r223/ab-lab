@@ -157,6 +157,23 @@ def _far_tail_bound(critical: float, noncentrality: float) -> float:
     return float(stats.norm.cdf(-critical - noncentrality))
 
 
+def _check_power_beats_alpha(power: float, alpha: float) -> None:
+    """Reject a target power a test reaches with no effect at all.
+
+    At an effect of zero the power of a test *is* alpha, so asking for power at
+    or below alpha has no smallest detectable effect - every effect qualifies,
+    including none. Without this the failure surfaces from inside the root finder
+    as "f(a) and f(b) must have different signs", which is the message
+    :func:`~ab_lab._validation.check_power` was added to stop appearing.
+    """
+    if power <= alpha:
+        raise ValueError(
+            f"power must exceed alpha to have a smallest detectable effect; "
+            f"got power={power:g} against alpha={alpha:g}, and a test with no "
+            f"effect at all already rejects {alpha:g} of the time"
+        )
+
+
 def _solve_sample_size(
     power_fn,
     effect_size: float,
@@ -286,6 +303,7 @@ def mde_for_mean(
     if std_dev <= 0.0:
         raise ValueError(f"std_dev must be positive, got {std_dev}")
     check_power(power)
+    _check_power_beats_alpha(power, alpha)
 
     def gap(effect_size: float) -> float:
         return power_t(effect_size, n_per_group, alpha, ratio, alternative) - power
@@ -338,6 +356,7 @@ def mde_for_proportion(
     if not 0.0 < baseline_rate < 1.0:
         raise ValueError(f"baseline_rate must be in (0, 1), got {baseline_rate}")
     check_power(power)
+    _check_power_beats_alpha(power, alpha)
     if direction not in ("increase", "decrease"):
         raise ValueError(f"direction must be 'increase' or 'decrease', got {direction!r}")
     sign = 1.0 if direction == "increase" else -1.0
