@@ -71,11 +71,23 @@ one turns a ratio of totals into a mean**, and the result must then be
 `cluster_robust_t_test` — which is itself verified against `statsmodels` to 1e-12
 in ADR 0008.
 
-Measured: the estimate, the p-value and the degrees of freedom are bit-identical,
-and the test statistic differs by one unit in the last place, because the ratio
-path divides by a mean denominator of exactly 1.0 and that is one extra
-floating-point operation. The test asserts equality on the first three and a
-1e-12 relative tolerance on the fourth, and says why.
+Measured: the estimate and the degrees of freedom are bit-identical, because they
+are sums, differences and integer arithmetic. The statistic differs by one unit
+in the last place, because the ratio path divides by a mean denominator of
+exactly 1.0 and that is one extra floating-point operation.
+
+**The p-value's status was got wrong first, and CI caught it.** This ADR
+originally recorded the p-value as bit-identical too, because it was — on the
+machine the work was done on. Both CI runners disagreed at the sixteenth
+significant figure: `0.0027097165221115927` against `0.002709716522111593`. The
+p-value carries the statistic's last-bit difference through `scipy.stats.t.sf`,
+a transcendental whose final bit depends on the platform's `libm`, so
+bit-identity there was never a defensible claim in the first place.
+
+The test now asserts exact equality on the two quantities that are pure
+arithmetic and a 1e-12 relative tolerance on the two that are not, and says which
+is which. The statistical content is untouched: 1e-12 is eleven orders of
+magnitude tighter than anything a broken reduction could produce.
 
 A special case that fails to reduce is the clearest possible sign that the
 general case is wrong somewhere.

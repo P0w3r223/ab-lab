@@ -51,10 +51,23 @@ def test_a_denominator_of_one_is_the_cluster_robust_t_test():
     """The reduction that makes the general case believable.
 
     `y / 1` is `y`, and the linearised contribution `y - R*1` is the residual
-    `y - ybar`, so every quantity must match. The test statistic is compared to
-    a relative tolerance rather than bit-for-bit: the ratio path divides by a
-    mean denominator of exactly 1.0, which is one extra floating-point operation
-    and lands one unit in the last place away.
+    `y - ybar`, so every quantity must match.
+
+    **Two of them match bit-for-bit and two do not, and the boundary is the
+    point.** The estimate and the degrees of freedom are sums, differences and
+    integer arithmetic: identical everywhere. The statistic divides by a mean
+    denominator of exactly 1.0 - one extra floating-point operation, one unit in
+    the last place - and the p-value carries that through
+    ``scipy.stats.t.sf``, a transcendental whose last bit depends on the platform
+    ``libm``.
+
+    An earlier version of this test asserted bit-identity on the p-value. It
+    passed on Windows and failed on both CI runners at the sixteenth significant
+    figure. Bit-identity through a transcendental was never a defensible claim;
+    it was an accident of one machine. The statistical content - that the
+    reduction is exact - is unaffected and is asserted at 1e-12, which is eleven
+    orders of magnitude tighter than anything the reduction could plausibly get
+    wrong.
     """
     rng = np.random.default_rng(3)
     control_values, treatment_values = rng.normal(0.0, 1.0, 300), rng.normal(0.2, 1.0, 300)
@@ -70,10 +83,12 @@ def test_a_denominator_of_one_is_the_cluster_robust_t_test():
         ClusteredSample.from_arrays(treatment_values, treatment_ids),
     )
 
+    # Pure arithmetic: identical on every platform.
     assert as_ratio.estimate == as_cluster.estimate
-    assert as_ratio.p_value == as_cluster.p_value
     assert as_ratio.df == as_cluster.df
+    # One extra operation, then a transcendental: identical to 1e-12, not to the bit.
     assert as_ratio.statistic == pytest.approx(as_cluster.statistic, rel=1e-12)
+    assert as_ratio.p_value == pytest.approx(as_cluster.p_value, rel=1e-12)
     assert isinstance(as_ratio, _TestResult)
 
 
