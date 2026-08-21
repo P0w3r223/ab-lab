@@ -167,3 +167,29 @@ def test_a_constant_covariate_is_refused_rather_than_divided_by():
 def test_metric_and_covariate_must_describe_the_same_units():
     with pytest.raises(ValueError, match="same units"):
         CupedSample.from_arrays([1.0, 2.0, 3.0], [1.0, 2.0])
+
+
+def test_the_constructor_validates_as_well_as_the_classmethod():
+    """Same gap as the other two sample types had, closed the same way."""
+    with pytest.raises(ValueError, match="same units"):
+        CupedSample(metric=np.ones(3), covariate=np.ones(2))
+    with pytest.raises(ValueError, match="NaN"):
+        CupedSample(metric=np.array([1.0, np.nan]), covariate=np.ones(2))
+
+
+def test_a_metric_constant_within_each_arm_still_returns_a_result():
+    """It used to raise from a second, discarded call.
+
+    `cuped_t_test` fetched its Welch assumptions by re-running the unadjusted
+    test. With a metric constant inside each arm but different between them, the
+    *adjusted* arms have variance and the test computes fine - while that second
+    call raised "both groups are constant", a statement that was false about the
+    result being returned.
+    """
+    rng = np.random.default_rng(41)
+    control = CupedSample.from_arrays(np.full(50, 1.0), rng.normal(0, 1, 50))
+    treatment = CupedSample.from_arrays(np.full(50, 2.0), rng.normal(0, 1, 50))
+
+    result = cuped_t_test(control, treatment)
+    assert result.estimate == pytest.approx(1.0, abs=0.2)
+    assert any("variances may differ" in note for note in result.assumptions)

@@ -231,17 +231,31 @@ class ClusteredSampleSizeResult:
     """
 
     n_clusters_per_group: int
+    n_clusters_treatment: int
     per_group: float
     independent_per_group: float
     design_effect: float
     icc: float
     mean_cluster_size: float
+    ratio: float
     mde: float
     alpha: float
     power: float
     alternative: str
     method: str
     assumptions: tuple[str, ...]
+
+    @property
+    def total_clusters(self) -> int:
+        """Units to recruit across both arms.
+
+        Reported because ``n_clusters_per_group`` is the *control* arm, and an
+        uneven split makes the two differ. An earlier version accepted ``ratio``
+        and silently dropped it, so a design meant to run 107 against 214 was
+        reported as "107 per arm" - which recruits 214 in total instead of 321
+        and lands under the power it was sized for.
+        """
+        return self.n_clusters_per_group + self.n_clusters_treatment
 
     @property
     def extra_units_clustering_costs(self) -> float:

@@ -150,6 +150,10 @@ def main() -> None:
     _heading("2. On arrival: was assignment even correct?")
     srm = check_srm([USERS_PER_ARM, USERS_PER_ARM], alpha=GUARDRAIL_ALPHA)
     print(f"  Allocation {srm.observed}, p = {srm.p_value:.3f}, mismatch: {srm.is_mismatch}")
+    print("  A formality here and only here: the simulator assigns exactly, so this step")
+    print("  can only pass. In production the counts come from the data, and this is the")
+    print("  check that catches a redirect dropping users from one arm - which would make")
+    print("  every number below unreadable rather than merely imprecise.")
 
     _heading("3. Conversion: did more people buy?")
     conversion = proportion_test(

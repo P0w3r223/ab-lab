@@ -217,3 +217,43 @@ def test_one_unit_per_arm_is_refused_rather_than_estimated():
     treatment = RatioSample.from_arrays([2.0, 3.0], [4.0, 4.0], [8, 8])
     with pytest.raises(ValueError, match="at least 2 clusters"):
         ratio_metric_test(control, treatment)
+
+
+@pytest.mark.parametrize(
+    ("numerator", "denominator", "ids", "message"),
+    [
+        (np.array([1.0, np.nan]), np.ones(2), np.array([0, 1]), "NaN"),
+        (np.ones(2), np.zeros(2), np.array([0, 1]), "sums to zero"),
+        (np.ones(2), -np.ones(2), np.array([0, 1]), "non-negative"),
+    ],
+)
+def test_the_constructor_validates_as_well_as_the_classmethod(
+    numerator, denominator, ids, message
+):
+    """Same gap as `ClusteredSample` had, closed the same way."""
+    with pytest.raises(ValueError, match=message):
+        RatioSample(numerator=numerator, denominator=denominator, cluster_ids=ids)
+
+
+def test_the_delta_method_holds_when_a_unit_contributes_several_rows():
+    """The case the sandwich half of this test actually exists for.
+
+    Every earlier ratio simulation put one row in each cluster, so
+    `n_observations == n_clusters` and the cluster-robust aggregation had
+    nothing to aggregate. With four rows per unit, sharing that unit's rate,
+    the rows are correlated and the sandwich is doing work.
+    """
+    draw = clustered_ratio_draw(
+        n_clusters_per_group=300,
+        trials_per_cluster=poisson_cluster_size(mean_size=12.0),
+        base_rate=0.20,
+        rate_dispersion=0.08,
+        rows_per_cluster=4,
+    )
+    control, _ = draw(np.random.default_rng(5))
+    assert control.numerator.size == 4 * control.n_clusters
+
+    summary = run_ratio_experiments(
+        draw, ratio_p_value, RUNS, np.random.default_rng(801), alpha=ALPHA
+    )
+    assert summary.agrees_with(ALPHA)

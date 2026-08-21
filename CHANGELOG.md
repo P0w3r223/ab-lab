@@ -6,6 +6,70 @@ Notable changes to `ab-lab`. The reasoning behind each decision lives in
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 the project follows [semantic versioning](https://semver.org/).
 
+## [0.4.1] — 2026-08-21
+
+A review of the two releases above, and the fixes it produced. Everything here
+was invisible to the test suite by construction, which is the useful part: CI
+was green through all of it.
+
+### Fixed — would have produced a wrong number or a wrong reading
+
+- **`from ab_lab import *` raised `AttributeError` on 0.4.0.** `__all__`
+  advertised `CupedResult`, `RatioSample` and `ratio_metric_test`, and the
+  package never imported them — while `from ab_lab.ratio import ...` worked,
+  making the failure look arbitrary. `ruff` does not catch this (F822 does not
+  fire in `__init__.py`) and no test imported from the top level. Three now do.
+- **The published page attributed every figure to one script, seed and package
+  version — the wrong ones.** The footer took `next(iter(record.findings))`,
+  and `load()` sorts, so it named `three_inflations.py` at seed 20260821 above a
+  peeking chart produced by `peeking_pitfalls.py` at seed 20260721. The
+  byte-equality guard could not see it: the generator faithfully produced the
+  wrong bytes. The footer now carries one row per contributing run.
+- **All three new sample types validated only in `from_arrays`.** Their
+  constructors are public and exported, so a NaN passed to `ClusteredSample(...)`
+  produced a NaN p-value, which compares `False` against alpha and reads as "not
+  significant" — the exact failure `_validation` names and `_checked_p_value`
+  refuses. Validation moved to `__post_init__`, so both paths are guarded.
+- **`sample_size_for_clustered_mean` accepted `ratio` and silently ignored it.**
+  A design meant to run 436 units against 872 reported "436 per arm". The result
+  now carries `n_clusters_treatment`, `ratio` and `total_clusters`.
+- **`design_effect` could return a negative variance-inflation factor**, by
+  composing a legitimately negative intraclass correlation with a size-weighted
+  mean large enough to overwhelm it. It now refuses, and says why.
+- **`cuped_t_test` re-ran the unadjusted Welch test** only to read a static
+  assumptions tuple. It doubled the work and could raise "both groups are
+  constant" about a result it was returning successfully.
+- **The reported design effect divided a CR1-corrected variance by an
+  uncorrected one**, inflating it by the finite-sample factor — immaterial at
+  400 clusters and visible at ten, which is exactly where the result's own
+  "anti-conservative below forty" caveat points.
+- **`mde_for_mean` and `mde_for_proportion` surfaced brentq's "f(a) and f(b)
+  must have different signs"** when asked for power at or below alpha — the
+  message `check_power` exists to prevent.
+
+### Fixed — guards that did not guard
+
+- The weekly replay claimed "every recorded finding, re-measured at full size"
+  and covered two of three. `clustering` and `multiplicity` — two of the page's
+  three sections — were re-measured by nothing. Both are now replayed, and the
+  design check is parametrised over the record so a fourth finding is covered
+  the day it is added.
+- The ratio simulation never put more than one row in a cluster, so the sandwich
+  half of `ratio_metric_test` was exercised only by the reduction test.
+  `clustered_ratio_draw` gained `rows_per_cluster`, and A/A validity is now
+  checked with correlated rows inside each unit.
+- `write_section` silently relabelled a record's `schema_version` instead of
+  refusing a mismatch `load` would reject.
+- `replace_fences` searched for a closing marker from index 0, so a malformed
+  fence produced mangled output rather than the promised error.
+
+### Removed
+
+- The page's "what is not on this page yet" section. It was unreachable once all
+  three findings were recorded, and it carried four hand-typed Monte Carlo rates
+  — two already disagreeing with the record — directly beneath a footer saying
+  nothing on the page was typed by hand.
+
 ## [0.4.0] — 2026-08-21
 
 0.3.0 was about tests that lie. This release is about affording an answer, and
