@@ -25,12 +25,71 @@ from collections.abc import Callable, Sequence
 import numpy as np
 from numpy.typing import NDArray
 
+from ._validation import check_alpha
 from .analyze import proportion_test, welch_t_test
 from .results import SimulationSummary
 from .sequential import msprt
 
 Draw = Callable[[np.random.Generator], tuple[NDArray[np.float64], NDArray[np.float64]]]
 PValueFn = Callable[[NDArray[np.float64], NDArray[np.float64]], float]
+
+#: What the harness should report as "the effect", given one experiment's data.
+EstimateFn = Callable[[NDArray[np.float64], NDArray[np.float64]], float]
+
+
+def mean_difference(
+    control: NDArray[np.float64], treatment: NDArray[np.float64]
+) -> float:
+    """Treatment mean minus control mean - the default estimand.
+
+    Made explicit and overridable because the runners used to hardcode it while
+    accepting *any* ``p_value_fn``. That is harmless while every adapter here
+    estimates a difference of means, and wrong the moment one does not:
+    :func:`~ab_lab.analyze.mann_whitney` estimates P(treatment > control), and a
+    summary pairing its p-value with a mean difference would be reporting two
+    different quantities as though they were one.
+    """
+    return float(treatment.mean() - control.mean())
+
+
+class _Tally:
+    """The running counts behind every summary this module produces.
+
+    One implementation on purpose. The three runners have to agree on what
+    counts as a rejection, how the estimate is averaged, and which estimates
+    feed the winner's-curse figure - otherwise the rows they produce are not
+    comparable, and comparing a fixed-horizon test with a sequential one in a
+    single table is the reason this module exists.
+    """
+
+    def __init__(self, n_experiments: int, nominal_alpha: float, label: str) -> None:
+        self._n_experiments = n_experiments
+        self._nominal_alpha = nominal_alpha
+        self._label = label
+        self._rejections = 0
+        self._estimate_total = 0.0
+        self._absolute_estimate_when_stopped = 0.0
+
+    def record(self, estimate: float, rejected: bool) -> None:
+        """Add one finished experiment."""
+        self._estimate_total += estimate
+        if rejected:
+            self._rejections += 1
+            self._absolute_estimate_when_stopped += abs(estimate)
+
+    def summarise(self) -> SimulationSummary:
+        return SimulationSummary(
+            n_experiments=self._n_experiments,
+            n_rejections=self._rejections,
+            nominal_alpha=self._nominal_alpha,
+            mean_estimate=self._estimate_total / self._n_experiments,
+            label=self._label,
+            mean_absolute_estimate_when_stopped=(
+                self._absolute_estimate_when_stopped / self._rejections
+                if self._rejections
+                else None
+            ),
+        )
 
 
 def binary_draw(
@@ -136,35 +195,28 @@ def run_experiments(
     rng: np.random.Generator,
     alpha: float = 0.05,
     label: str = "single look",
+    estimate_fn: EstimateFn | None = None,
 ) -> SimulationSummary:
     """Run many independent experiments, each analysed once at the end.
 
     This is the correct, non-peeking use of a fixed-horizon test: one decision,
     at the sample size the experiment was designed for.
+
+    Args:
+        estimate_fn: What to report as the effect. Defaults to
+            :func:`mean_difference`; supply another when ``p_value_fn`` tests
+            something other than a difference of means.
     """
     _check_run(n_experiments, alpha)
-    rejections = 0
-    estimate_total = 0.0
-    absolute_estimate_when_stopped = 0.0
+    estimate_of = mean_difference if estimate_fn is None else estimate_fn
+    tally = _Tally(n_experiments, alpha, label)
 
     for _ in range(n_experiments):
         control, treatment = draw(rng)
-        estimate = float(treatment.mean() - control.mean())
-        estimate_total += estimate
-        if _checked_p_value(p_value_fn, control, treatment) < alpha:
-            rejections += 1
-            absolute_estimate_when_stopped += abs(estimate)
+        estimate = estimate_of(control, treatment)
+        tally.record(estimate, _checked_p_value(p_value_fn, control, treatment) < alpha)
 
-    return SimulationSummary(
-        n_experiments=n_experiments,
-        n_rejections=rejections,
-        nominal_alpha=alpha,
-        mean_estimate=estimate_total / n_experiments,
-        label=label,
-        mean_absolute_estimate_when_stopped=(
-            absolute_estimate_when_stopped / rejections if rejections else None
-        ),
-    )
+    return tally.summarise()
 
 
 def run_with_peeking(
@@ -175,6 +227,7 @@ def run_with_peeking(
     rng: np.random.Generator,
     alpha: float = 0.05,
     label: str = "peeking",
+    estimate_fn: EstimateFn | None = None,
 ) -> SimulationSummary:
     """Run many experiments, stopping at the first look that reaches ``alpha``.
 
@@ -196,9 +249,8 @@ def run_with_peeking(
     if list(look_sizes) != sorted(look_sizes):
         raise ValueError(f"look_sizes must be increasing, got {tuple(look_sizes)}")
 
-    rejections = 0
-    estimate_total = 0.0
-    absolute_estimate_when_stopped = 0.0
+    estimate_of = mean_difference if estimate_fn is None else estimate_fn
+    tally = _Tally(n_experiments, alpha, label)
 
     for _ in range(n_experiments):
         control, treatment = draw(rng)
@@ -211,7 +263,6 @@ def run_with_peeking(
         stopped_early = False
         for index, size in enumerate(look_sizes):
             if _checked_p_value(p_value_fn, control[:size], treatment[:size]) < alpha:
-                rejections += 1
                 stopped_at = index
                 stopped_early = True
                 break
@@ -219,21 +270,9 @@ def run_with_peeking(
         # is what an owner would have shipped, and it is biased upward exactly
         # because stopping happened on a large observed difference.
         final = look_sizes[stopped_at]
-        estimate = float(treatment[:final].mean() - control[:final].mean())
-        estimate_total += estimate
-        if stopped_early:
-            absolute_estimate_when_stopped += abs(estimate)
+        tally.record(estimate_of(control[:final], treatment[:final]), stopped_early)
 
-    return SimulationSummary(
-        n_experiments=n_experiments,
-        n_rejections=rejections,
-        nominal_alpha=alpha,
-        mean_estimate=estimate_total / n_experiments,
-        label=label,
-        mean_absolute_estimate_when_stopped=(
-            absolute_estimate_when_stopped / rejections if rejections else None
-        ),
-    )
+    return tally.summarise()
 
 
 def peeking_curve(
@@ -303,5 +342,4 @@ def _checked_p_value(
 def _check_run(n_experiments: int, alpha: float) -> None:
     if n_experiments < 1:
         raise ValueError(f"n_experiments must be positive, got {n_experiments}")
-    if not 0.0 < alpha < 1.0:
-        raise ValueError(f"alpha must be in (0, 1), got {alpha}")
+    check_alpha(alpha)

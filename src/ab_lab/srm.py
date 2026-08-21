@@ -15,6 +15,7 @@ from collections.abc import Sequence
 import numpy as np
 from scipy import stats
 
+from ._validation import check_alpha
 from .results import SrmResult
 
 # SRM is checked on every experiment, and a false alarm costs an investigation.
@@ -49,8 +50,7 @@ def check_srm(
     total = counts.sum()
     if total <= 0:
         raise ValueError("observed counts are all zero: nothing to check")
-    if not 0.0 < alpha < 1.0:
-        raise ValueError(f"alpha must be in (0, 1), got {alpha}")
+    check_alpha(alpha)
 
     if expected_ratios is None:
         ratios = np.full(counts.size, 1.0 / counts.size)

@@ -15,6 +15,7 @@ import numpy as np
 import pytest
 
 from ab_lab.power import power_t, power_z, sample_size_for_proportion
+from ab_lab.results import SimulationSummary
 from ab_lab.sequential import tau_from_mde
 from ab_lab.simulate import (
     binary_draw,
@@ -31,11 +32,6 @@ from ab_lab.simulate import (
 ALPHA = 0.05
 
 
-def _within_monte_carlo_error(summary, target: float, sigmas: float = 4.0) -> bool:
-    """True when the empirical rate is indistinguishable from ``target``."""
-    return abs(summary.rejection_rate - target) < sigmas * summary.monte_carlo_error
-
-
 def test_welch_holds_its_nominal_type_i_error_on_aa_data():
     summary = run_experiments(
         draw=normal_draw(n_per_group=500, mean=10.0, std_dev=3.0),
@@ -45,7 +41,7 @@ def test_welch_holds_its_nominal_type_i_error_on_aa_data():
         alpha=ALPHA,
         label="A/A Welch",
     )
-    assert _within_monte_carlo_error(summary, ALPHA)
+    assert summary.agrees_with(ALPHA)
     assert summary.mean_estimate == pytest.approx(0.0, abs=0.05)
 
 
@@ -57,7 +53,7 @@ def test_proportion_test_holds_its_nominal_type_i_error_on_aa_data():
         rng=np.random.default_rng(102),
         alpha=ALPHA,
     )
-    assert _within_monte_carlo_error(summary, ALPHA)
+    assert summary.agrees_with(ALPHA)
 
 
 def test_empirical_power_matches_the_promised_power_for_means():
@@ -70,7 +66,7 @@ def test_empirical_power_matches_the_promised_power_for_means():
         rng=np.random.default_rng(103),
         alpha=ALPHA,
     )
-    assert _within_monte_carlo_error(summary, power_t(effect_size, n_per_group, alpha=ALPHA))
+    assert summary.agrees_with(power_t(effect_size, n_per_group, alpha=ALPHA))
 
 
 def test_a_sample_size_solved_for_eighty_percent_power_delivers_it():
@@ -84,7 +80,7 @@ def test_a_sample_size_solved_for_eighty_percent_power_delivers_it():
         rng=np.random.default_rng(104),
         alpha=ALPHA,
     )
-    assert _within_monte_carlo_error(summary, 0.8)
+    assert summary.agrees_with(0.8)
 
 
 def test_the_normal_approximation_is_the_reason_power_z_is_used_for_rates():
@@ -106,7 +102,7 @@ def test_peeking_inflates_the_false_positive_rate():
         draw, welch_p_value, list(range(200, 2_001, 200)), 1_500, rng, alpha=ALPHA
     )
 
-    assert _within_monte_carlo_error(single_look, ALPHA)
+    assert single_look.agrees_with(ALPHA)
     assert ten_looks.rejection_rate > 3 * ALPHA
 
 
@@ -189,7 +185,7 @@ def test_the_sequential_test_survives_the_same_peeking():
         alpha=ALPHA,
         label="A/A mSPRT, 10 looks",
     )
-    assert summary.rejection_rate <= ALPHA + 3 * summary.monte_carlo_error
+    assert summary.agrees_with(ALPHA, claim="at most")
 
 
 def test_the_sequential_test_still_finds_a_real_effect():
@@ -272,3 +268,63 @@ def test_binary_draw_rejects_a_rate_outside_the_unit_interval():
 def test_run_rejects_a_meaningless_number_of_experiments():
     with pytest.raises(ValueError, match="n_experiments must be positive"):
         run_experiments(normal_draw(50), welch_p_value, 0, np.random.default_rng(0))
+
+
+def _summary(n_rejections: int, n_experiments: int = 10_000) -> SimulationSummary:
+    return SimulationSummary(
+        n_experiments=n_experiments,
+        n_rejections=n_rejections,
+        nominal_alpha=ALPHA,
+        mean_estimate=0.0,
+        label="constructed",
+    )
+
+
+def test_a_conservative_procedure_keeps_its_promise_and_breaks_the_other_one():
+    """The mSPRT's measured rate under peeking is around 1.1% against a nominal
+    5%. That is correct behaviour for an anytime-valid test and a failure for a
+    fixed-horizon one, which is why the claim has to be named."""
+    summary = _summary(n_rejections=110)
+
+    assert summary.agrees_with(ALPHA, claim="at most")
+    assert not summary.agrees_with(ALPHA, claim="equals")
+
+
+def test_the_two_claims_do_not_have_the_same_tolerance():
+    """An equality claim can fail in either direction and gets four sigmas; an
+    upper bound can only fail upward and gets three. Between the two there is a
+    band where the answer depends on which promise was made - here it is."""
+    summary = _summary(n_rejections=582)
+    sigmas_above_alpha = (summary.rejection_rate - ALPHA) / summary.monte_carlo_error
+    assert 3.0 < sigmas_above_alpha < 4.0
+
+    assert summary.agrees_with(ALPHA, claim="equals")
+    assert not summary.agrees_with(ALPHA, claim="at most")
+
+
+def test_an_unnamed_claim_is_refused_rather_than_guessed():
+    with pytest.raises(ValueError, match="claim must be"):
+        _summary(n_rejections=500).agrees_with(ALPHA, claim="roughly")
+
+
+def test_the_harness_reports_the_estimand_it_was_given():
+    """Both runners used to report a difference of means whatever the p-value
+    function estimated. A constant estimator makes the coupling visible."""
+    summary = run_experiments(
+        draw=normal_draw(n_per_group=200, mean=10.0, std_dev=1.0),
+        p_value_fn=welch_p_value,
+        n_experiments=25,
+        rng=np.random.default_rng(700),
+        estimate_fn=lambda control, treatment: float(treatment.size),
+    )
+    assert summary.mean_estimate == 200.0
+
+
+def test_the_default_estimand_is_still_the_difference_of_means():
+    summary = run_experiments(
+        draw=normal_draw(n_per_group=200, mean=10.0, std_dev=1.0),
+        p_value_fn=welch_p_value,
+        n_experiments=25,
+        rng=np.random.default_rng(700),
+    )
+    assert summary.mean_estimate == pytest.approx(0.0, abs=0.05)

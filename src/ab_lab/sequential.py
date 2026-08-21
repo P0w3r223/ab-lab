@@ -27,9 +27,10 @@ from __future__ import annotations
 import math
 import sys
 
-import numpy as np
-from numpy.typing import ArrayLike, NDArray
+from numpy.typing import ArrayLike
 
+from ._validation import as_sample as _as_sample
+from ._validation import check_alpha as _check_alpha
 from .results import SequentialResult
 
 # Above this, exp() overflows a float. The likelihood ratio grows like
@@ -111,8 +112,7 @@ def msprt(
     """
     control_sample = _as_sample(control, "control")
     treatment_sample = _as_sample(treatment, "treatment")
-    if not 0.0 < alpha < 1.0:
-        raise ValueError(f"alpha must be in (0, 1), got {alpha}")
+    _check_alpha(alpha)
 
     estimate = float(treatment_sample.mean() - control_sample.mean())
     variance = float(
@@ -164,8 +164,7 @@ class SequentialMonitor:
     def __init__(self, tau: float, alpha: float = 0.05) -> None:
         if tau <= 0.0:
             raise ValueError(f"tau must be positive, got {tau}")
-        if not 0.0 < alpha < 1.0:
-            raise ValueError(f"alpha must be in (0, 1), got {alpha}")
+        _check_alpha(alpha)
         self.tau = tau
         self.alpha = alpha
         self._looks: list[SequentialResult] = []
@@ -197,14 +196,3 @@ class SequentialMonitor:
         )
         self._looks.append(monotone)
         return monotone
-
-
-def _as_sample(values: ArrayLike, name: str) -> NDArray[np.float64]:
-    array = np.asarray(values, dtype=np.float64)
-    if array.ndim != 1:
-        raise ValueError(f"{name} must be one-dimensional, got shape {array.shape}")
-    if array.size < 2:
-        raise ValueError(f"{name} needs at least 2 observations, got {array.size}")
-    if not np.all(np.isfinite(array)):
-        raise ValueError(f"{name} contains NaN or infinite values")
-    return array

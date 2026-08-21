@@ -96,7 +96,7 @@ design = sample_size_for_proportion(baseline_rate=0.10, mde=0.01, power=0.8)
 print(design.per_group)          # 14745 users per arm to see 10.0% -> 11.0%
 
 # The question worth asking when that number is unaffordable:
-print(mde_for_proportion(n_per_group=5_000, baseline_rate=0.10))   # 0.0174
+print(mde_for_proportion(n_per_group=5_000, baseline_rate=0.10).mde)   # 0.0174
 # ...at 5k per arm nothing under a 1.74pp lift is visible at all.
 ```
 

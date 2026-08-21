@@ -113,7 +113,7 @@ def test_the_same_lift_is_dearer_near_fifty_percent():
 @pytest.mark.parametrize("n_per_group", [500, 5_000, 50_000])
 def test_mde_for_mean_inverts_sample_size(n_per_group):
     mde = mde_for_mean(n_per_group, std_dev=40.0)
-    assert sample_size_for_mean(mde, std_dev=40.0).exact_per_group == pytest.approx(
+    assert sample_size_for_mean(mde.mde, std_dev=40.0).exact_per_group == pytest.approx(
         n_per_group, rel=1e-6
     )
 
@@ -121,7 +121,7 @@ def test_mde_for_mean_inverts_sample_size(n_per_group):
 @pytest.mark.parametrize("baseline_rate", [0.02, 0.15, 0.60])
 def test_mde_for_proportion_inverts_sample_size(baseline_rate):
     mde = mde_for_proportion(20_000, baseline_rate)
-    assert sample_size_for_proportion(baseline_rate, mde).exact_per_group == pytest.approx(
+    assert sample_size_for_proportion(baseline_rate, mde.mde).exact_per_group == pytest.approx(
         20_000, rel=1e-6
     )
 
@@ -193,9 +193,9 @@ def test_a_drop_and_a_lift_are_not_the_same_experiment():
 
     detectable_drop = mde_for_proportion(20_000, 0.10, direction="decrease")
     detectable_lift = mde_for_proportion(20_000, 0.10, direction="increase")
-    assert detectable_drop < detectable_lift
+    assert detectable_drop.mde < detectable_lift.mde
     assert sample_size_for_proportion(
-        0.10, -detectable_drop
+        0.10, -detectable_drop.mde
     ).exact_per_group == pytest.approx(20_000, rel=1e-6)
 
 
@@ -206,3 +206,31 @@ def test_mde_rejects_an_unreachable_direction_or_power():
         mde_for_proportion(20_000, 0.10, power=1.5)
     with pytest.raises(ValueError, match="power must be in"):
         mde_for_mean(20_000, std_dev=1.0, power=0.0)
+
+
+def test_the_detectable_effect_arrives_with_the_design_that_produced_it():
+    """A magnitude on its own is not an answer.
+
+    The same 20 000 units per arm give a different smallest-detectable move at
+    90% power than at 80%, and a different one downward than upward. Returning
+    the number without those is what "assumptions ship with the estimate"
+    forbids, so the design travels with it - and still solves the power equation
+    it claims to.
+    """
+    result = mde_for_proportion(20_000, 0.10, power=0.9, direction="decrease")
+
+    assert result.n_per_group == 20_000
+    assert result.power == 0.9
+    assert result.direction == "decrease"
+    assert result.alpha == 0.05
+    assert result.assumptions
+
+    assert sample_size_for_proportion(
+        0.10, -result.mde, power=0.9
+    ).exact_per_group == pytest.approx(20_000, rel=1e-6)
+
+
+def test_a_mean_has_no_direction_to_report():
+    """Cohen's d is symmetric, so a lift and a drop cost the same - and the
+    result says so rather than implying a direction it did not solve for."""
+    assert mde_for_mean(5_000, std_dev=40.0).direction == "either"

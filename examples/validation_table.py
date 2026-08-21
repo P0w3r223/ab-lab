@@ -16,7 +16,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from ab_lab.power import power_t, sample_size_for_proportion
-from ab_lab.results import SimulationSummary
+from ab_lab.results import Claim, SimulationSummary
 from ab_lab.sequential import tau_from_mde
 from ab_lab.simulate import (
     binary_draw,
@@ -46,21 +46,18 @@ class Row:
     scenario: str
     expected: float
     summary: SimulationSummary
-    claim: str = "equals"
+    claim: Claim = "equals"
 
     def as_markdown(self) -> str:
+        # The verdict comes from the summary itself, so this table, the test
+        # suite and the published page cannot disagree about what "pass" means.
+        # It also validates ``claim`` - hence before the symbol is chosen.
+        passed = self.summary.agrees_with(self.expected, self.claim)
+        symbol = "=" if self.claim == "equals" else "<="
         rate = self.summary.rejection_rate
         error = self.summary.monte_carlo_error
-        if self.claim == "equals":
-            target = f"= {self.expected:.4f}"
-            passed = abs(rate - self.expected) < 4.0 * error
-        elif self.claim == "at most":
-            target = f"<= {self.expected:.4f}"
-            passed = rate <= self.expected + 3.0 * error
-        else:
-            raise ValueError(f"claim must be 'equals' or 'at most', got {self.claim!r}")
         return (
-            f"| {self.scenario} | {target} | {rate:.4f} | +/-{error:.4f} "
+            f"| {self.scenario} | {symbol} {self.expected:.4f} | {rate:.4f} | +/-{error:.4f} "
             f"| {'pass' if passed else 'CHECK'} |"
         )
 
