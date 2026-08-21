@@ -87,6 +87,45 @@ class TestResult:
 
 
 @dataclass(frozen=True)
+class ClusterTestResult(TestResult):
+    """A two-group test whose standard error accounts for clustered units.
+
+    The only subclass in this package, and the exception is deliberate. A
+    cluster-robust result *is* a :class:`TestResult` - ``isinstance`` holds,
+    ``.p_value`` works, every adapter in :mod:`ab_lab.simulate` takes it
+    unchanged - but its guarantee is different, and the distinct type says so:
+    the sandwich estimator is anti-conservative below roughly 40 clusters, which
+    a Welch result never is. Composition would have cost ``.test_result.p_value``
+    at every call site to hide that.
+
+    Attributes:
+        design_effect: The **realised** ratio of the cluster-robust variance to
+            the variance an independence assumption would have given. This is the
+            number that makes the finding concrete: at 3.7, an interval computed
+            as though the rows were independent is a factor of sqrt(3.7) too
+            narrow. It is measured from this data rather than derived from an
+            estimated intraclass correlation.
+        effective_n: Total observations divided by the design effect - how many
+            genuinely independent observations this sample is worth.
+        df: Degrees of freedom, ``n_clusters_control + n_clusters_treatment - 2``.
+            The convention matters when comparing against another
+            implementation; see ADR 0008.
+    """
+
+    n_clusters_control: int
+    n_clusters_treatment: int
+    mean_cluster_size: float
+    design_effect: float
+    effective_n: float
+    df: float
+
+    @property
+    def n_clusters(self) -> int:
+        """Clusters across both arms - what the guarantee actually depends on."""
+        return self.n_clusters_control + self.n_clusters_treatment
+
+
+@dataclass(frozen=True)
 class SampleSizeResult:
     """Required sample size for a planned experiment.
 
@@ -107,6 +146,45 @@ class SampleSizeResult:
     def rounding_slack(self) -> float:
         """How many units of sample size the ceiling added."""
         return self.per_group - self.exact_per_group
+
+
+@dataclass(frozen=True)
+class ClusteredSampleSizeResult:
+    """Required sample size when each unit contributes several observations.
+
+    Deliberately *not* a subclass of :class:`SampleSizeResult`, unlike
+    :class:`ClusterTestResult` which does subclass :class:`TestResult`. The
+    inheritance there buys something concrete - every adapter in
+    :mod:`ab_lab.simulate` consumes a ``TestResult`` and keeps working. Nothing
+    consumes a ``SampleSizeResult`` polymorphically, so subclassing here would
+    add a hierarchy for the look of consistency and gain nothing.
+
+    Attributes:
+        n_clusters_per_group: The number that actually has to be recruited.
+        per_group: Observations per arm, ``n_clusters_per_group * mean_cluster_size``.
+        independent_per_group: What the same design would have needed if every
+            observation were its own unit - the number an experiment gets sized
+            at by mistake.
+        design_effect: The factor between the two.
+    """
+
+    n_clusters_per_group: int
+    per_group: float
+    independent_per_group: float
+    design_effect: float
+    icc: float
+    mean_cluster_size: float
+    mde: float
+    alpha: float
+    power: float
+    alternative: str
+    method: str
+    assumptions: tuple[str, ...]
+
+    @property
+    def extra_units_clustering_costs(self) -> float:
+        """How many more observations per arm the clustering is charging."""
+        return self.per_group - self.independent_per_group
 
 
 @dataclass(frozen=True)

@@ -11,19 +11,27 @@ suite fails on a broken method, not on an unlucky seed.
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 import pytest
 
+from ab_lab.cluster import sample_size_for_clustered_mean
 from ab_lab.power import power_t, power_z, sample_size_for_proportion
 from ab_lab.results import SimulationSummary
 from ab_lab.sequential import tau_from_mde
 from ab_lab.simulate import (
     binary_draw,
+    cluster_robust_p_value,
+    clustered_normal_draw,
     lognormal_draw,
     msprt_p_value,
+    naive_welch_p_value,
     normal_draw,
     peeking_curve,
+    poisson_cluster_size,
     proportion_p_value,
+    run_clustered_experiments,
     run_experiments,
     run_with_peeking,
     welch_p_value,
@@ -328,3 +336,134 @@ def test_the_default_estimand_is_still_the_difference_of_means():
         rng=np.random.default_rng(700),
     )
     assert summary.mean_estimate == pytest.approx(0.0, abs=0.05)
+
+
+def test_repeated_measurements_per_user_break_the_nominal_error_rate():
+    """The second mechanism, in the same harness and the same summary type.
+
+    A/A data - no effect anywhere - with ten rows per user and an intraclass
+    correlation of 0.30. Analysed row by row, the test rejects about six times
+    more often than it promises; analysed with a cluster-robust standard error,
+    on identical draws, it holds. The design effect predicts 1 + 9(0.30) = 3.7,
+    hence 2*Phi(-1.96/sqrt(3.7)) = 0.308.
+    """
+    draw = clustered_normal_draw(
+        n_clusters_per_group=200, cluster_size=10, icc=0.30, std_dev=1.0
+    )
+
+    naive = run_clustered_experiments(
+        draw=draw,
+        p_value_fn=naive_welch_p_value,
+        n_experiments=2_000,
+        rng=np.random.default_rng(301),
+        alpha=ALPHA,
+        label="A/A clustered, rows treated as independent",
+    )
+    robust = run_clustered_experiments(
+        draw=draw,
+        p_value_fn=cluster_robust_p_value,
+        n_experiments=2_000,
+        rng=np.random.default_rng(301),
+        alpha=ALPHA,
+        label="A/A clustered, cluster-robust",
+    )
+
+    assert naive.rejection_rate > ALPHA + 6.0 * naive.monte_carlo_error
+    assert naive.agrees_with(0.308)
+    assert robust.agrees_with(ALPHA)
+
+
+def test_the_correction_survives_clusters_of_wildly_different_sizes():
+    """Unbalanced is the case that matters: aggregating to user means is only
+    exact when every user contributes the same number of rows, and real users
+    never do."""
+    draw = clustered_normal_draw(
+        n_clusters_per_group=150,
+        cluster_size=poisson_cluster_size(mean_size=8.0),
+        icc=0.25,
+        std_dev=1.0,
+    )
+    robust = run_clustered_experiments(
+        draw=draw,
+        p_value_fn=cluster_robust_p_value,
+        n_experiments=1_500,
+        rng=np.random.default_rng(302),
+        alpha=ALPHA,
+        label="A/A clustered, unbalanced",
+    )
+    assert robust.agrees_with(ALPHA)
+
+
+def test_clustering_costs_nothing_when_there_is_none():
+    """One row per user: the correction must not invent a penalty."""
+    draw = clustered_normal_draw(n_clusters_per_group=400, cluster_size=1, icc=0.0)
+    robust = run_clustered_experiments(
+        draw=draw,
+        p_value_fn=cluster_robust_p_value,
+        n_experiments=1_500,
+        rng=np.random.default_rng(303),
+        alpha=ALPHA,
+        label="A/A unclustered",
+    )
+    assert robust.agrees_with(ALPHA)
+
+
+def test_a_clustered_design_delivers_the_power_it_was_sized_for():
+    """The design loop closed: size it, run it, count how often it wins.
+
+    This is the test that would catch a design-effect inflation applied in the
+    wrong direction, or forgotten - an error that leaves an experiment quietly
+    under-powered and is invisible until the experiment fails to find an effect
+    that was really there.
+    """
+    icc, cluster_size, lift = 0.2, 5, 0.2
+    design = sample_size_for_clustered_mean(
+        mde=lift, std_dev=1.0, icc=icc, mean_cluster_size=cluster_size, power=0.8, alpha=ALPHA
+    )
+
+    achieved = run_clustered_experiments(
+        draw=clustered_normal_draw(
+            n_clusters_per_group=design.n_clusters_per_group,
+            cluster_size=cluster_size,
+            icc=icc,
+            std_dev=1.0,
+            absolute_lift=lift,
+        ),
+        p_value_fn=cluster_robust_p_value,
+        n_experiments=2_000,
+        rng=np.random.default_rng(304),
+        alpha=ALPHA,
+        label="A/B clustered at the sized n",
+    )
+    assert achieved.agrees_with(0.80)
+
+
+def test_sizing_without_the_design_effect_would_have_been_under_powered():
+    """The same experiment sized as though rows were independent.
+
+    Not a straw man: this is what `sample_size_for_mean` returns, and it is the
+    number an experiment gets planned with when nobody asks how many rows a user
+    contributes.
+    """
+    icc, cluster_size, lift = 0.2, 5, 0.2
+    design = sample_size_for_clustered_mean(
+        mde=lift, std_dev=1.0, icc=icc, mean_cluster_size=cluster_size, power=0.8, alpha=ALPHA
+    )
+    naive_clusters = math.ceil(design.independent_per_group / cluster_size)
+    assert naive_clusters < design.n_clusters_per_group
+
+    achieved = run_clustered_experiments(
+        draw=clustered_normal_draw(
+            n_clusters_per_group=naive_clusters,
+            cluster_size=cluster_size,
+            icc=icc,
+            std_dev=1.0,
+            absolute_lift=lift,
+        ),
+        p_value_fn=cluster_robust_p_value,
+        n_experiments=2_000,
+        rng=np.random.default_rng(305),
+        alpha=ALPHA,
+        label="A/B clustered, sized as if independent",
+    )
+    assert achieved.rejection_rate < 0.80 - 4.0 * achieved.monte_carlo_error

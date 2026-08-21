@@ -12,6 +12,32 @@ Foundations for the 0.3.0 release described in
 [ADR 0006](docs/decisions/0006-three-mechanisms-of-alpha-inflation.md). No
 statistical method changed; every published number is unchanged.
 
+### Added — cluster-robust variance
+
+[ADR 0008](docs/decisions/0008-cluster-robust-variance.md). The second of the
+three mechanisms in ADR 0006, and the limitation the README had listed first.
+
+- `ab_lab.cluster`: `ClusteredSample`, `cluster_robust_t_test`,
+  `intraclass_correlation`, `design_effect`, `sample_size_for_clustered_mean`.
+  The test returns a `ClusterTestResult`, which carries the **realised** design
+  effect and the effective sample size — the numbers that make the finding
+  concrete ("your 5 000 sessions are worth 1 350 independent observations").
+- Measured on A/A data with ten rows per user at an intraclass correlation of
+  0.30: the row-level analysis rejects **32.3%** (±1.1) of the time against a
+  nominal 5%, and the same draws with a cluster-robust standard error reject
+  **5.4%** (±0.5). The derivation predicted 30.8% before the code existed.
+- The standard error matches `statsmodels`' `cov_type="cluster"` to 1e-12
+  relative on balanced clusters, unbalanced clusters and unequal arms.
+  `design_effect` is checked against the *realised* variance of a sample mean
+  over 4 000 draws rather than against a second formula.
+- `ab_lab.simulate` gained `clustered_normal_draw`, `poisson_cluster_size`,
+  `naive_welch_p_value`, `cluster_robust_p_value` and
+  `run_clustered_experiments`. The draw contract differs because a clustered
+  experiment cannot be two flat arrays without either assuming balanced clusters
+  or pre-aggregating — and pre-aggregating removes the analysis being caught.
+  The tally and the summary type stay shared, so all three mechanisms land in
+  one table.
+
 ### Added — the page is generated
 
 [ADR 0007](docs/decisions/0007-the-page-is-generated.md). `docs/index.html` was

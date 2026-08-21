@@ -155,10 +155,13 @@ def _not_yet_section(record: Record) -> str:
         (
             "Count each user once",
             "Metrics with repeated measurements per user - sessions, orders, page views - "
-            "break the independence every interval here assumes. Counted as independent "
-            "observations they understate the variance, and the derivation says a nominal "
-            "5% lands near 31% at an intraclass correlation of 0.30 with ten rows per "
-            "user. Cluster-robust variance is designed and not yet implemented.",
+            "break the independence every interval here assumes. <strong>Implemented and "
+            "measured in the test suite</strong>: analysed row by row at an intraclass "
+            "correlation of 0.30 with ten rows per user, a true null rejects 32.3% "
+            "(±1.1) of the time; the cluster-robust standard error in "
+            "<code>ab_lab.cluster</code> puts it back to 5.4% (±0.5) on identical draws. "
+            "It is not on this page yet because the finding has not been recorded here - "
+            "and this page only shows what the record contains.",
         ),
         (
             "Test one metric",
@@ -186,9 +189,11 @@ def _not_yet_section(record: Record) -> str:
 def _limits_section() -> str:
     return """<section>
   <h2>What this package will not do for you</h2>
-  <p><strong>It assumes independent units.</strong> See above: cluster-robust variance is
-  not implemented, so every interval here is too narrow for a metric measured more than
-  once per user.</p>
+  <p><strong>Independence is optional, but you have to ask for it.</strong> The default
+  tests assume one observation per unit, and nothing detects when that is false.
+  <code>ab_lab.cluster</code> corrects it when you say so - and its own estimator is
+  anti-conservative below about forty units per arm, which the result reports rather than
+  hides.</p>
   <p><strong>The mSPRT is conservative.</strong> Its measured false positive rate under ten
   looks is well under the nominal 5%. Validity is bought with power, and a correctly
   executed group-sequential design would stop sooner - the reasoning for choosing it anyway
