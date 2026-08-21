@@ -76,7 +76,7 @@ from .srm import check_srm
 
 #: Single source of truth: ``pyproject.toml`` reads this attribute rather than
 #: restating the number, so the two cannot drift at the release where it matters.
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 __all__ = [
     "CORRECTIONS",

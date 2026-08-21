@@ -330,8 +330,22 @@ README are assertions in `tests/`. Rendering lives in `examples/`.
 
 Tracked as issues labelled `roadmap`:
 
-1. A worked e-commerce case study: conversion and average order value together,
-   ending in a business decision rather than a p-value.
+The four items this file has carried since 0.1 are done. What is left is what
+the ADRs named while deciding *not* to do it yet, which is a different and more
+honest kind of list:
+
+1. **A cluster bootstrap**, resampling whole units. It would complete the family
+   the package already has two thirds of - independent, paired, clustered
+   ([ADR 0008](docs/decisions/0008-cluster-robust-variance.md)).
+2. **Compounding the three mechanisms.** Peeking at clustered data, sequential
+   testing across a metric suite. The 0.3.0 thesis is that the three are
+   independent, not that they compose, and demonstrating composition needs a
+   runner that can slice a prefix without cutting a user in half
+   ([ADR 0006](docs/decisions/0006-three-mechanisms-of-alpha-inflation.md) D7).
+3. **CUPED on a clustered or ratio metric.** It composes with both in principle;
+   nothing here has measured it, and
+   [ADR 0011](docs/decisions/0011-cuped-variance-reduction.md) says so rather
+   than implying the composition is free.
 
 ## License
 
