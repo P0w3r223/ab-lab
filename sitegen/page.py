@@ -18,6 +18,8 @@ ADR_LINKS = [
     ("0001", "statsmodels is a test oracle, not a dependency"),
     ("0003", "mSPRT rather than group-sequential boundaries"),
     ("0006", "one claim measured three ways"),
+    ("0008", "cluster-robust variance"),
+    ("0009", "three corrections, two guarantees"),
     ("0007", "the page is generated from a committed record"),
 ]
 
@@ -25,6 +27,8 @@ ADR_FILES = {
     "0001": "0001-no-statsmodels-at-runtime.md",
     "0003": "0003-msprt-over-group-sequential.md",
     "0006": "0006-three-mechanisms-of-alpha-inflation.md",
+    "0008": "0008-cluster-robust-variance.md",
+    "0009": "0009-multiplicity-control.md",
     "0007": "0007-the-page-is-generated.md",
 }
 
@@ -166,8 +170,11 @@ def _not_yet_section(record: Record) -> str:
         (
             "Test one metric",
             "Ten metrics at 5% each reject at least one under the global null "
-            "1 - 0.95<sup>10</sup> = 40% of the time. Holm and Benjamini-Hochberg are "
-            "designed and not yet implemented.",
+            "1 - 0.95<sup>10</sup> = 40.1% of the time. <strong>Implemented and "
+            "measured in the test suite</strong>: 39.4% (±1.6) uncorrected, 5.2% (±0.7) "
+            "with Holm. <code>ab_lab.multiplicity</code> also has Benjamini-Hochberg, "
+            "which controls something different - the expected share of the rejections "
+            "that are wrong, not the chance of there being one.",
         ),
     ]
     if len(record.findings) > 1:  # pragma: no cover - the section disappears at 0.3.0
@@ -176,11 +183,13 @@ def _not_yet_section(record: Record) -> str:
         f"  <p><strong>{title}.</strong> {body}</p>" for title, body in missing
     )
     return f"""<section>
-  <h2>Two thirds of that sentence is not measured here yet</h2>
-  <p>The claim above names three mechanisms. One of them is measured on this page. The
-  other two are designed, with their derivations written down before the code exists so
-  that the simulation has something falsifiable to contradict - see
-  <a href="decisions/{ADR_FILES["0006"]}">ADR 0006</a>.</p>
+  <h2>Two thirds of that sentence is measured, but not on this page yet</h2>
+  <p>The claim above names three mechanisms. All three are implemented, and all three are
+  measured on experiments where there is no effect to find. Only the first has been
+  <em>recorded onto this page</em>, and this page shows what the record contains and
+  nothing else - which is the point of building it that way. The derivations for the other
+  two were written down before their code existed, so the simulation had something
+  falsifiable to contradict: see <a href="decisions/{ADR_FILES["0006"]}">ADR 0006</a>.</p>
 {items}
   <p>Saying so here costs less than a page that implies three findings and shows one.</p>
 </section>"""
@@ -203,6 +212,10 @@ def _limits_section() -> str:
   <p><strong>Normal approximations are used for proportions</strong> and are unreliable at
   very low rates with small samples - at least ten successes and ten failures expected per
   arm is the rule of thumb.</p>
+  <p><strong>Nothing decides what "the family" is.</strong> <code>ab_lab.multiplicity</code>
+  corrects across a set of metrics, but which metrics belong in one family is a judgement,
+  not a computation - and correcting a subset while reading the rest raw controls nothing
+  at all. The library makes you name the members; it cannot make that the right list.</p>
   <p><strong>Sample sizes may differ by a few percent from an online calculator</strong>,
   which usually applies the absolute-difference formula rather than Cohen's h. For the same
   reason a one-point drop and a one-point lift are not the same experiment, so a guardrail

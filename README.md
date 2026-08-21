@@ -9,13 +9,19 @@ This package measures what each of those three costs — on A/A experiments wher
 there is no effect to find — and implements the correction for each.
 **[Live page →](https://p0w3r223.github.io/ab-lab/)**
 
-Looking early is measured below. Counting each user once is implemented and
-measured in the test suite — row by row, a true null rejects 32.3% of the time
-instead of 5%, and `ab_lab.cluster` puts it back to 5.4% on identical draws.
-Testing one metric is designed, with its derivation written down before the code
-exists so the simulation has something falsifiable to contradict
-([ADR 0006](docs/decisions/0006-three-mechanisms-of-alpha-inflation.md)); it
-lands in 0.3.0.
+All three are implemented and measured. Looking early is the one shown below;
+the other two are measured in the test suite, on A/A data where there is no
+effect to find:
+
+| Mechanism | Nominal | Measured | Correction | After |
+|---|---|---|---|---|
+| Checked 20 times | 5% | **25.3%** | mSPRT | 1.2% |
+| 10 rows per user, ICC 0.30 | 5% | **32.3%** | cluster-robust SE | 5.4% |
+| 10 metrics at once | 5% | **39.4%** | Holm | 5.2% |
+
+Three independent routes to the same conclusion, which is what makes it a
+finding rather than an anecdote
+([ADR 0006](docs/decisions/0006-three-mechanisms-of-alpha-inflation.md)).
 
 Most A/B mistakes are not coding mistakes. They are an experiment sized for an
 effect nobody would act on, a "significant" result read off a dashboard on day
@@ -192,6 +198,26 @@ print(design.n_clusters_per_group)          # 582 users per arm, not 158
 print(design.extra_units_clustering_costs)  # what ignoring it would have cost
 ```
 
+**When the experiment has more than one metric** — which of these results
+survive being asked all at once?
+
+```python
+from ab_lab.multiplicity import holm
+
+family = holm(
+    [signups.p_value, revenue.p_value, latency.p_value, churn.p_value],
+    labels=["signups", "revenue", "latency", "churn"],
+)
+print(family.error_rate_controlled)   # 'family-wise error rate' - which promise this is
+print(family.for_label("revenue"))    # (adjusted p-value, verdict)
+print(family.n_rejected)              # how many survive being asked together
+```
+
+Naming the members is the point: a correction applied to some of the metrics
+while the rest are read raw controls nothing. `benjamini_hochberg` is also
+available and controls a *different* thing — the expected share of the
+rejections that are false, not the chance of there being one.
+
 ## Architecture
 
 ```
@@ -203,6 +229,7 @@ src/ab_lab/
   sequential.py  # mSPRT: anytime-valid p-values, SequentialMonitor
   cluster.py     # repeated measurements per user: CR1 sandwich, design effect,
                  # and the sample size that accounts for it
+  multiplicity.py # many metrics at once: Bonferroni, Holm, Benjamini-Hochberg
   simulate.py    # draws + p-value adapters + the A/A / A/B / peeking harness
 sitegen/         # renders the page, the tables above and the chart, from
                  # docs/data/findings.json — never simulates, never guesses
@@ -233,9 +260,11 @@ README are assertions in `tests/`. Rendering lives in `examples/`.
 - **The mSPRT is conservative.** Measured false positive rate under ten looks is
   around 1.2% against a nominal 5%. Validity is bought with power, and a
   correctly executed group-sequential design would stop sooner.
-- **No multiple-comparison correction across metrics.** Testing one experiment
-  against fifteen metrics inflates the error rate the same way peeking does;
-  this package measures the peeking case and does not yet cover the other.
+- **Nothing decides what "the family" is.** `ab_lab.multiplicity` corrects across
+  a set of metrics, but which metrics belong in one family is a judgement, not a
+  computation — and correcting a subset while reading the rest uncorrected
+  controls nothing at all. The library makes you name the members; it cannot
+  make that the right list.
 - **The bootstrap's p-value has a floor** of `2/(n_resamples+1)`. A "p < 0.001"
   read off a 1 000-resample bootstrap is an artefact.
 - **Normal approximations are used for proportions** and are unreliable at very
@@ -253,12 +282,10 @@ README are assertions in `tests/`. Rendering lives in `examples/`.
 
 Tracked as issues labelled `roadmap`:
 
-1. Multiple-comparison control across a metric suite — the third mechanism, and
-   the last one 0.3.0 needs.
-2. CUPED variance reduction using a pre-experiment covariate.
+1. CUPED variance reduction using a pre-experiment covariate.
+2. Ratio metrics via the delta method, reusing the cluster-robust variance.
 3. A worked e-commerce case study: conversion and average order value together,
    ending in a business decision rather than a p-value.
-4. Multiple-comparison control across a metric suite.
 
 ## License
 

@@ -269,6 +269,60 @@ class SequentialResult:
 
 
 @dataclass(frozen=True)
+class MultipleComparisonResult:
+    """One family of tests, and which of them survive the correction.
+
+    ``error_rate_controlled`` is the field that matters, and it is a string
+    rather than a flag because the two guarantees are not stronger and weaker
+    versions of one thing. Controlling the family-wise error rate bounds the
+    probability of **any** false positive in the family. Controlling the false
+    discovery rate bounds the expected **share** of the rejections that are
+    false, and says nothing about whether there is one. Reading a
+    Benjamini-Hochberg result as though it were Holm is the usual way this goes
+    wrong, so the promise travels with the numbers.
+
+    Attributes:
+        adjusted_p_values: Comparable to alpha directly. Returned rather than a
+            bare mask so the family can be re-thresholded without re-running,
+            and because that is what makes the comparison against a reference
+            implementation exact.
+        labels: What the family consists of. Optional, but naming the members is
+            the whole discipline: a correction is meaningless until "the family"
+            is defined, and the definition is a decision, not a computation.
+    """
+
+    method: str
+    alpha: float
+    p_values: tuple[float, ...]
+    adjusted_p_values: tuple[float, ...]
+    rejected: tuple[bool, ...]
+    error_rate_controlled: str
+    assumptions: tuple[str, ...]
+    labels: tuple[str, ...] | None = None
+
+    @property
+    def n_comparisons(self) -> int:
+        return len(self.p_values)
+
+    @property
+    def n_rejected(self) -> int:
+        return sum(self.rejected)
+
+    @property
+    def any_rejected(self) -> bool:
+        return any(self.rejected)
+
+    def for_label(self, label: str) -> tuple[float, bool]:
+        """The adjusted p-value and verdict for one named member of the family."""
+        if self.labels is None:
+            raise ValueError("this result has no labels; pass labels= to the correction")
+        if label not in self.labels:
+            raise KeyError(f"{label!r} is not in this family: {self.labels}")
+        index = self.labels.index(label)
+        return self.adjusted_p_values[index], self.rejected[index]
+
+
+@dataclass(frozen=True)
 class SimulationSummary:
     """Empirical behaviour of a procedure over many simulated experiments.
 
@@ -285,11 +339,45 @@ class SimulationSummary:
     # winner's curse lives here: a *signed* average cancels out under A/A, so
     # it cannot show that stopping early inflates what gets reported.
     mean_absolute_estimate_when_stopped: float | None = None
+    # Set only by a metric-suite run. `n_rejections` then counts experiments with
+    # *at least one* rejection, so `rejection_rate` is the family-wise error rate;
+    # the false discovery rate needs its own accumulator because it is a mean of
+    # per-experiment ratios and cannot be recovered from totals.
+    n_comparisons: int | None = None
+    n_family_wise_errors: int | None = None
+    mean_false_discovery_proportion: float | None = None
 
     @property
     def rejection_rate(self) -> float:
-        """Share of simulated experiments declared significant."""
+        """Share of simulated experiments declared significant.
+
+        For a metric suite this is the share of experiments in which *anything*
+        was rejected. Under a global null that is the family-wise error rate;
+        under a partial null it is not, because true rejections count towards it
+        too - see :attr:`family_wise_error_rate`.
+        """
         return self.n_rejections / self.n_experiments
+
+    @property
+    def family_wise_error_rate(self) -> float:
+        """Share of experiments containing at least one **false** rejection.
+
+        The quantity Bonferroni and Holm actually promise to bound. It differs
+        from :attr:`rejection_rate` exactly when some metrics have a real effect,
+        which is the setting where Benjamini-Hochberg can be told apart from
+        Holm - so conflating the two makes that comparison unmeasurable.
+        """
+        if self.n_family_wise_errors is None:
+            raise ValueError(
+                "this summary does not know which comparisons were null; pass "
+                "is_null= to the metric-suite runner to measure a false positive rate"
+            )
+        return self.n_family_wise_errors / self.n_experiments
+
+    def family_wise_monte_carlo_error(self) -> float:
+        """Standard error of :attr:`family_wise_error_rate`."""
+        rate = self.family_wise_error_rate
+        return (rate * (1.0 - rate) / self.n_experiments) ** 0.5
 
     @property
     def monte_carlo_error(self) -> float:

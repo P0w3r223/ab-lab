@@ -12,6 +12,32 @@ Foundations for the 0.3.0 release described in
 [ADR 0006](docs/decisions/0006-three-mechanisms-of-alpha-inflation.md). No
 statistical method changed; every published number is unchanged.
 
+### Added — multiplicity control
+
+[ADR 0009](docs/decisions/0009-multiplicity-control.md). The third mechanism,
+and the last one this release needs.
+
+- `ab_lab.multiplicity`: `bonferroni`, `holm`, `benjamini_hochberg` and a
+  `CORRECTIONS` registry, returning a `MultipleComparisonResult` that carries
+  **adjusted p-values** and names which error rate it controls. Three functions
+  rather than one dispatcher because there are two guarantees, not one: a single
+  docstring would have to state both at once.
+- Measured on ten independent metrics: read as ten separate tests, a true null
+  rejects **39.4%** (±1.6) of the time; with Holm, **5.2%** (±0.7). The exact
+  value is `1 - 0.95¹⁰ = 40.13%`, so the test asserts that number rather than
+  "greater than alpha" — a directional assertion would pass for a badly broken
+  harness.
+- Adjusted p-values match `statsmodels.stats.multitest.multipletests` to 1e-12
+  for all three procedures. Holm's running maximum and Benjamini-Hochberg's
+  running minimum each have a hand-arithmetic fixture, because omitting either
+  leaves a result that still looks plausible.
+- `SimulationSummary` gained `n_comparisons`, `n_family_wise_errors` and
+  `mean_false_discovery_proportion`, plus a `family_wise_error_rate` property.
+  Three fields, not the two the design predicted: under a *partial* null —
+  the only setting where Benjamini-Hochberg differs from Holm — `rejection_rate`
+  counts experiments where anything was rejected, including correctly, so it is
+  not a false positive rate at all.
+
 ### Added — cluster-robust variance
 
 [ADR 0008](docs/decisions/0008-cluster-robust-variance.md). The second of the

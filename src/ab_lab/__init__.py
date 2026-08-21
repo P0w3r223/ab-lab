@@ -8,6 +8,8 @@ The package is organised by the question you are asking:
 * :mod:`ab_lab.sequential` - during the experiment: may I look at this yet?
 * :mod:`ab_lab.cluster` - when a unit appears more than once: is 5 000 sessions
   really 5 000 observations?
+* :mod:`ab_lab.multiplicity` - when one experiment has many metrics: which
+  of these results survive being asked all at once?
 * :mod:`ab_lab.simulate` - underneath all of it: does this code actually work?
 
 One vocabulary difference to know about: design functions take
@@ -36,6 +38,12 @@ from .cluster import (
     intraclass_correlation,
     sample_size_for_clustered_mean,
 )
+from .multiplicity import (
+    CORRECTIONS,
+    benjamini_hochberg,
+    bonferroni,
+    holm,
+)
 from .power import (
     cohens_h,
     mde_for_mean,
@@ -50,6 +58,7 @@ from .results import (
     ClusterTestResult,
     ConfidenceInterval,
     MdeResult,
+    MultipleComparisonResult,
     SampleSizeResult,
     SequentialResult,
     SimulationSummary,
@@ -64,11 +73,13 @@ from .srm import check_srm
 __version__ = "0.3.0.dev0"
 
 __all__ = [
+    "CORRECTIONS",
     "ClusterTestResult",
     "ClusteredSample",
     "ClusteredSampleSizeResult",
     "ConfidenceInterval",
     "MdeResult",
+    "MultipleComparisonResult",
     "SampleSizeResult",
     "SequentialMonitor",
     "SequentialResult",
@@ -76,11 +87,14 @@ __all__ = [
     "SrmResult",
     "TestResult",
     "always_valid_p_value",
+    "benjamini_hochberg",
+    "bonferroni",
     "bootstrap_diff",
     "check_srm",
     "cluster_robust_t_test",
     "cohens_h",
     "design_effect",
+    "holm",
     "intraclass_correlation",
     "mann_whitney",
     "paired_bootstrap",
