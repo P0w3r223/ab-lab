@@ -14,7 +14,8 @@ legitimate. Deliberately not a wrapper: the methods are implemented here and
 
 ```
 src/ab_lab/
-  results.py     # frozen dataclasses: every public function returns one of these
+  results.py     # frozen dataclasses: every estimating function returns one
+  _validation.py # private: the shared alpha / power / sample argument checks
   power.py       # design: power_z / power_t core, sample size and MDE on top
   analyze.py     # post-hoc: Welch, two-proportion z, Mann-Whitney, bootstrap
   srm.py         # sample ratio mismatch (chi-square on the allocation)
@@ -22,6 +23,7 @@ src/ab_lab/
   simulate.py    # draws + p-value adapters + the A/A / A/B / peeking harness
 examples/        # scripts that regenerate the README's tables and chart
 docs/decisions/  # ADRs
+CHANGELOG.md     # what changed; the ADRs say why
 ```
 
 Data flows one way: `power` is used before an experiment, `srm` the moment data

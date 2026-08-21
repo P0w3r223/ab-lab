@@ -4,16 +4,32 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ab-lab"
-version = "0.2.0"
-description = "Design and analysis of A/B experiments: power, tests, bootstrap, SRM and sequential peeking correction, validated by simulation."
+# Read from src/ab_lab/__init__.py so the number lives in exactly one place.
+dynamic = ["version"]
+description = "A 5% test is only 5% if you look once, count each user once, and test one metric - the statistics that catch each case, validated by simulation."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
-keywords = ["ab-testing", "experimentation", "statistics", "power-analysis", "sequential-testing"]
+keywords = ["ab-testing", "experimentation", "statistics", "power-analysis", "sequential-testing", "monte-carlo"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Typing :: Typed",
+]
 dependencies = [
     "numpy>=1.26",
     "scipy>=1.11",
 ]
+
+[project.urls]
+Homepage = "https://p0w3r223.github.io/ab-lab/"
+Source = "https://github.com/P0w3r223/ab-lab"
+Issues = "https://github.com/P0w3r223/ab-lab/issues"
+Changelog = "https://github.com/P0w3r223/ab-lab/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 # statsmodels is a *test oracle*, not a runtime dependency: the point of the
@@ -32,6 +48,14 @@ dev = [
 [tool.setuptools]
 package-dir = { "" = "src" }
 packages = ["ab_lab"]
+
+[tool.setuptools.dynamic]
+version = { attr = "ab_lab.__version__" }
+
+# Every public function here is annotated; without this marker PEP 561 says a
+# consumer's type checker must ignore all of it.
+[tool.setuptools.package-data]
+ab_lab = ["py.typed"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

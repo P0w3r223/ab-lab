@@ -19,45 +19,45 @@ tends to be read as a two-sided one, which overstates precision.
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import Literal
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 from scipy import stats
 
+from ._validation import Alternative
+from ._validation import as_sample as _as_sample
+from ._validation import check_alpha as _check_alpha
+from ._validation import check_alternative as _check_alternative
 from .results import ConfidenceInterval, TestResult
-
-Alternative = Literal["two-sided", "less", "greater"]
 
 # Bootstrap resampling is vectorised in chunks so that memory stays bounded
 # regardless of sample size and resample count.
 _MAX_CHUNK_ELEMENTS = 4_000_000
 
 
-def _as_sample(values: ArrayLike, name: str) -> NDArray[np.float64]:
-    """Validate one arm of the experiment and return it as a float array."""
-    array = np.asarray(values, dtype=np.float64)
-    if array.ndim != 1:
-        raise ValueError(f"{name} must be one-dimensional, got shape {array.shape}")
-    if array.size < 2:
-        raise ValueError(f"{name} needs at least 2 observations, got {array.size}")
-    if not np.all(np.isfinite(array)):
-        raise ValueError(f"{name} contains NaN or infinite values")
-    return array
+def _resampling_assumptions(
+    n_resamples: int, rng: np.random.Generator | None
+) -> tuple[str, ...]:
+    """The caveats every bootstrap here carries, including the seedless one.
 
-
-def _check_alternative(alternative: str) -> Alternative:
-    if alternative not in ("two-sided", "less", "greater"):
-        raise ValueError(
-            f"alternative must be 'two-sided', 'less' or 'greater', got {alternative!r}"
-        )
-    return alternative  # type: ignore[return-value]
-
-
-def _check_alpha(alpha: float) -> float:
-    if not 0.0 < alpha < 1.0:
-        raise ValueError(f"alpha must be in (0, 1), got {alpha}")
-    return alpha
+    A default of ``rng=None`` is good ergonomics and bad evidence: the function
+    then draws from OS entropy and returns a different p-value on every run.
+    Rather than remove the convenience or leave the consequence unsaid, the
+    consequence travels with the result like every other assumption does.
+    """
+    shared = (
+        "the sample is large enough for its empirical distribution to stand "
+        "in for the population one",
+        f"p-value resolution is bounded below by 2/(n_resamples+1) = "
+        f"{2.0 / (n_resamples + 1.0):.2g}",
+    )
+    if rng is not None:
+        return shared
+    return (
+        *shared,
+        "no generator was supplied, so this result is not reproducible: "
+        "pass rng=numpy.random.default_rng(seed) to fix the resampling",
+    )
 
 
 def welch_t_test(
@@ -285,10 +285,7 @@ def bootstrap_diff(
         alternative="two-sided",
         assumptions=(
             "observations are independent and identically distributed per group",
-            "the sample is large enough for its empirical distribution to stand "
-            "in for the population one",
-            f"p-value resolution is bounded below by 2/(n_resamples+1) = "
-            f"{2.0 / (n_resamples + 1.0):.2g}",
+            *_resampling_assumptions(n_resamples, rng),
         ),
     )
 
@@ -390,10 +387,7 @@ def paired_bootstrap(
         assumptions=(
             "control[i] and treatment[i] describe the same unit",
             "units are independent of one another",
-            "the sample is large enough for its empirical distribution to stand "
-            "in for the population one",
-            f"p-value resolution is bounded below by 2/(n_resamples+1) = "
-            f"{2.0 / (n_resamples + 1.0):.2g}",
+            *_resampling_assumptions(n_resamples, rng),
         ),
     )
 

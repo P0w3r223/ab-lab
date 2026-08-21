@@ -12,6 +12,12 @@ One vocabulary difference to know about: design functions take
 ``alternative="two-sided"`` or ``"one-sided"`` (a sample size does not depend on
 *which* direction), while the analysis functions follow SciPy and take
 ``"two-sided"``, ``"less"`` or ``"greater"`` (a p-value does).
+
+:mod:`ab_lab.simulate` is deliberately not re-exported here. It is a laboratory
+rather than an API - its callables exist to be composed into an experiment about
+this package's own behaviour - so it is reached as ``from ab_lab.simulate import
+...``, which keeps the top-level surface the set of things you would use *on your
+own data*.
 """
 
 from .analyze import (
@@ -32,6 +38,7 @@ from .power import (
 )
 from .results import (
     ConfidenceInterval,
+    MdeResult,
     SampleSizeResult,
     SequentialResult,
     SimulationSummary,
@@ -41,10 +48,13 @@ from .results import (
 from .sequential import SequentialMonitor, always_valid_p_value, msprt, tau_from_mde
 from .srm import check_srm
 
-__version__ = "0.2.0"
+#: Single source of truth: ``pyproject.toml`` reads this attribute rather than
+#: restating the number, so the two cannot drift at the release where it matters.
+__version__ = "0.3.0.dev0"
 
 __all__ = [
     "ConfidenceInterval",
+    "MdeResult",
     "SampleSizeResult",
     "SequentialMonitor",
     "SequentialResult",
