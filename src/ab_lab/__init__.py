@@ -10,6 +10,8 @@ The package is organised by the question you are asking:
   really 5 000 observations?
 * :mod:`ab_lab.multiplicity` - when one experiment has many metrics: which
   of these results survive being asked all at once?
+* :mod:`ab_lab.ratio` - when the metric is a ratio of two totals: what is the
+  variance of a number whose denominator moves too?
 * :mod:`ab_lab.simulate` - underneath all of it: does this code actually work?
 
 One vocabulary difference to know about: design functions take
@@ -59,6 +61,7 @@ from .results import (
     ConfidenceInterval,
     MdeResult,
     MultipleComparisonResult,
+    RatioTestResult,
     SampleSizeResult,
     SequentialResult,
     SimulationSummary,
@@ -80,6 +83,8 @@ __all__ = [
     "ConfidenceInterval",
     "MdeResult",
     "MultipleComparisonResult",
+    "RatioSample",
+    "RatioTestResult",
     "SampleSizeResult",
     "SequentialMonitor",
     "SequentialResult",
@@ -104,6 +109,7 @@ __all__ = [
     "power_t",
     "power_z",
     "proportion_test",
+    "ratio_metric_test",
     "sample_size_for_clustered_mean",
     "sample_size_for_mean",
     "sample_size_for_proportion",

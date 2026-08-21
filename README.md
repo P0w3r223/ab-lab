@@ -221,6 +221,27 @@ while the rest are read raw controls nothing. `benjamini_hochberg` is also
 available and controls a *different* thing — the expected share of the
 rejections that are false, not the chance of there being one.
 
+**When the metric is a ratio** — clicks over impressions, orders over sessions.
+
+```python
+from ab_lab.ratio import RatioSample, ratio_metric_test
+
+control = RatioSample.from_arrays(clicks, impressions, user_ids)
+treatment = RatioSample.from_arrays(other_clicks, other_impressions, other_user_ids)
+
+result = ratio_metric_test(control, treatment)
+print(result.control_ratio, result.treatment_ratio)
+print(result.estimate, result.relative_effect)   # absolute and "+20%", both
+```
+
+The estimand is the **ratio of totals**, which weights a user by their
+denominator — not the mean of per-user ratios, which does not. One user clicking
+1 of 1 and another clicking 10 of 100 give 10.9% one way and 55% the other; both
+are defensible numbers and only one of them is the click-through rate. Whether
+the choice changes your answer is an empirical question about your population,
+and [ADR 0010](docs/decisions/0010-ratio-metrics-delta-method.md) measures both
+sides of it.
+
 ## Architecture
 
 ```
@@ -233,6 +254,7 @@ src/ab_lab/
   cluster.py     # repeated measurements per user: CR1 sandwich, design effect,
                  # and the sample size that accounts for it
   multiplicity.py # many metrics at once: Bonferroni, Holm, Benjamini-Hochberg
+  ratio.py       # metrics that are a ratio of two totals: the delta method
   simulate.py    # draws + p-value adapters + the A/A / A/B / peeking harness
 sitegen/         # renders the page, the tables above and the chart, from
                  # docs/data/findings.json — never simulates, never guesses
@@ -286,8 +308,7 @@ README are assertions in `tests/`. Rendering lives in `examples/`.
 Tracked as issues labelled `roadmap`:
 
 1. CUPED variance reduction using a pre-experiment covariate.
-2. Ratio metrics via the delta method, reusing the cluster-robust variance.
-3. A worked e-commerce case study: conversion and average order value together,
+2. A worked e-commerce case study: conversion and average order value together,
    ending in a business decision rather than a p-value.
 
 ## License
