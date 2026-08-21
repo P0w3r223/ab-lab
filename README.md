@@ -9,19 +9,22 @@ This package measures what each of those three costs — on A/A experiments wher
 there is no effect to find — and implements the correction for each.
 **[Live page →](https://p0w3r223.github.io/ab-lab/)**
 
-All three are implemented and measured. Looking early is the one shown below;
-the other two are measured in the test suite, on A/A data where there is no
-effect to find:
+Each mechanism at its worst, on A/A data where there is no effect to find:
 
-| Mechanism | Nominal | Measured | Correction | After |
+<!-- generated:mechanisms -->
+| At its worst | Nominal | Measured | Correction | After |
 |---|---|---|---|---|
-| Checked 20 times | 5% | **25.3%** | mSPRT | 1.2% |
-| 10 rows per user, ICC 0.30 | 5% | **32.3%** | cluster-robust SE | 5.4% |
-| 10 metrics at once | 5% | **39.4%** | Holm | 5.2% |
+| 20 times the results are checked | 5% | **25.3%** | mSPRT (anytime-valid) | 1.2% |
+| 20 rows per user | 5% | **44.0%** | Cluster-robust standard error | 5.6% |
+| 20 metrics measured at once | 5% | **65.7%** | Holm | 4.9% |
+<!-- /generated:mechanisms -->
 
 Three independent routes to the same conclusion, which is what makes it a
 finding rather than an anecdote
-([ADR 0006](docs/decisions/0006-three-mechanisms-of-alpha-inflation.md)).
+([ADR 0006](docs/decisions/0006-three-mechanisms-of-alpha-inflation.md)). Every
+figure in this README between `generated:` markers is written by
+`python -m sitegen.build` from `docs/data/findings.json`, and a test fails if the
+committed bytes stop matching.
 
 Most A/B mistakes are not coding mistakes. They are an experiment sized for an
 effect nobody would act on, a "significant" result read off a dashboard on day

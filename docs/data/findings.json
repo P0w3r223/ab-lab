@@ -1,5 +1,229 @@
 {
   "findings": {
+    "clustering": {
+      "design": {
+        "alpha": 0.05,
+        "draw": "normal(0, 1) split between user and row, total variance fixed",
+        "icc": 0.3,
+        "n_clusters_per_group": 200,
+        "n_experiments": 2000,
+        "rows_per_user": [
+          1,
+          2,
+          5,
+          10,
+          20
+        ],
+        "seed": 20260821
+      },
+      "nominal_alpha": 0.05,
+      "question": "A/A experiments with no effect anywhere, where each user contributes several rows that move together. Analysed row by row, every extra row looks like extra evidence and the variance of the difference is understated; analysed with a cluster-robust standard error, on the same draws, the rate holds. One row per user is the control case, where the correction must cost nothing at all.",
+      "recorded": {
+        "ab_lab_version": "0.3.0.dev0",
+        "numpy_version": "2.5.1",
+        "python_version": "3.12.10",
+        "recorded_on": "2026-08-21",
+        "script": "examples/three_inflations.py"
+      },
+      "series": [
+        {
+          "cells": [
+            {
+              "mean_absolute_estimate_when_stopped": 0.2266488027963912,
+              "mean_estimate": -0.0005298857788585356,
+              "n_experiments": 2000,
+              "n_rejections": 127,
+              "x": 1
+            },
+            {
+              "mean_absolute_estimate_when_stopped": 0.1717400721458986,
+              "mean_estimate": 0.002720637121176626,
+              "n_experiments": 2000,
+              "n_rejections": 190,
+              "x": 2
+            },
+            {
+              "mean_absolute_estimate_when_stopped": 0.11679683359497574,
+              "mean_estimate": -6.462772340925133e-05,
+              "n_experiments": 2000,
+              "n_rejections": 379,
+              "x": 5
+            },
+            {
+              "mean_absolute_estimate_when_stopped": 0.09215662235034959,
+              "mean_estimate": 0.002362295920708845,
+              "n_experiments": 2000,
+              "n_rejections": 647,
+              "x": 10
+            },
+            {
+              "mean_absolute_estimate_when_stopped": 0.07844093989513631,
+              "mean_estimate": 0.0011332788506065493,
+              "n_experiments": 2000,
+              "n_rejections": 881,
+              "x": 20
+            }
+          ],
+          "name": "Every row an observation",
+          "role": "naive"
+        },
+        {
+          "cells": [
+            {
+              "mean_absolute_estimate_when_stopped": 0.2266488027963912,
+              "mean_estimate": -0.0005298857788585356,
+              "n_experiments": 2000,
+              "n_rejections": 127,
+              "x": 1
+            },
+            {
+              "mean_absolute_estimate_when_stopped": 0.18908923772092048,
+              "mean_estimate": 0.002720637121176626,
+              "n_experiments": 2000,
+              "n_rejections": 110,
+              "x": 2
+            },
+            {
+              "mean_absolute_estimate_when_stopped": 0.15287716619959169,
+              "mean_estimate": -6.462772340925133e-05,
+              "n_experiments": 2000,
+              "n_rejections": 100,
+              "x": 5
+            },
+            {
+              "mean_absolute_estimate_when_stopped": 0.13952168570612586,
+              "mean_estimate": 0.002362295920708845,
+              "n_experiments": 2000,
+              "n_rejections": 100,
+              "x": 10
+            },
+            {
+              "mean_absolute_estimate_when_stopped": 0.1348172825519742,
+              "mean_estimate": 0.0011332788506065493,
+              "n_experiments": 2000,
+              "n_rejections": 112,
+              "x": 20
+            }
+          ],
+          "name": "Cluster-robust standard error",
+          "role": "corrected"
+        }
+      ],
+      "title": "The cost of counting a user more than once",
+      "x_label": "Rows per user"
+    },
+    "multiplicity": {
+      "design": {
+        "alpha": 0.05,
+        "correlation": 0.0,
+        "draw": "independent normal(0, 1) metrics, no true effect",
+        "metric_counts": [
+          1,
+          2,
+          5,
+          10,
+          20
+        ],
+        "n_experiments": 1500,
+        "n_per_group": 400,
+        "seed": 20260821
+      },
+      "nominal_alpha": 0.05,
+      "question": "A/A experiments measured on several independent metrics at once, each read at alpha. The chance that at least one comes back significant is 1 - (1 - alpha) to the power of the family size - the same arithmetic as peeking, run across metrics instead of across time. Holm holds the family-wise rate at alpha whatever the family size.",
+      "recorded": {
+        "ab_lab_version": "0.3.0.dev0",
+        "numpy_version": "2.5.1",
+        "python_version": "3.12.10",
+        "recorded_on": "2026-08-21",
+        "script": "examples/three_inflations.py"
+      },
+      "series": [
+        {
+          "cells": [
+            {
+              "mean_absolute_estimate_when_stopped": 0.16344146765562664,
+              "mean_estimate": 0.0008198398409573679,
+              "n_experiments": 1500,
+              "n_rejections": 77,
+              "x": 1
+            },
+            {
+              "mean_absolute_estimate_when_stopped": 0.08319459362078854,
+              "mean_estimate": -0.0009150773480119824,
+              "n_experiments": 1500,
+              "n_rejections": 156,
+              "x": 2
+            },
+            {
+              "mean_absolute_estimate_when_stopped": 0.034702394498086056,
+              "mean_estimate": -0.000471665010511562,
+              "n_experiments": 1500,
+              "n_rejections": 327,
+              "x": 5
+            },
+            {
+              "mean_absolute_estimate_when_stopped": 0.020643671764934358,
+              "mean_estimate": -0.0007062433340811843,
+              "n_experiments": 1500,
+              "n_rejections": 602,
+              "x": 10
+            },
+            {
+              "mean_absolute_estimate_when_stopped": 0.013971184939894722,
+              "mean_estimate": 0.0007043749938736863,
+              "n_experiments": 1500,
+              "n_rejections": 986,
+              "x": 20
+            }
+          ],
+          "name": "Each metric read at alpha",
+          "role": "naive"
+        },
+        {
+          "cells": [
+            {
+              "mean_absolute_estimate_when_stopped": 0.16344146765562664,
+              "mean_estimate": 0.0008198398409573679,
+              "n_experiments": 1500,
+              "n_rejections": 77,
+              "x": 1
+            },
+            {
+              "mean_absolute_estimate_when_stopped": 0.09313114405083092,
+              "mean_estimate": -0.0009150773480119824,
+              "n_experiments": 1500,
+              "n_rejections": 72,
+              "x": 2
+            },
+            {
+              "mean_absolute_estimate_when_stopped": 0.03805196367284892,
+              "mean_estimate": -0.000471665010511562,
+              "n_experiments": 1500,
+              "n_rejections": 90,
+              "x": 5
+            },
+            {
+              "mean_absolute_estimate_when_stopped": 0.022685733365120773,
+              "mean_estimate": -0.0007062433340811843,
+              "n_experiments": 1500,
+              "n_rejections": 75,
+              "x": 10
+            },
+            {
+              "mean_absolute_estimate_when_stopped": 0.014644649174560346,
+              "mean_estimate": 0.0007043749938736863,
+              "n_experiments": 1500,
+              "n_rejections": 73,
+              "x": 20
+            }
+          ],
+          "name": "Holm",
+          "role": "corrected"
+        }
+      ],
+      "title": "The cost of asking more than one question",
+      "x_label": "Metrics measured at once"
+    },
     "peeking": {
       "design": {
         "alpha": 0.05,

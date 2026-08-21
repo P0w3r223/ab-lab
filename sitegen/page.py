@@ -54,25 +54,23 @@ def _inline(text: str) -> str:
     return text
 
 
-def _tiles(finding: Finding, validation: Validation | None) -> str:
-    naive = finding.series_by_role("naive")
-    corrected = finding.series_by_role("corrected")
-    worst_index = naive.rates.index(max(naive.rates))
-    looks = f"{finding.x_values[worst_index]:g}"
-
-    tiles = [
-        (
-            "bad",
-            percent(naive.rates[worst_index]),
-            f"of A/A experiments declared a winner after {looks} looks, "
-            f"against a nominal {percent(finding.nominal, 0)}",
-        ),
-        (
-            "good",
-            percent(corrected.rates[worst_index]),
-            f"the same data, the same {looks} looks, the anytime-valid rule instead",
-        ),
-    ]
+def _tiles(findings: list[Finding], validation: Validation | None) -> str:
+    """One number per finding: the worst the naive procedure gets, and where."""
+    tiles = []
+    for finding in findings:
+        naive = finding.series_by_role("naive")
+        worst_index = naive.rates.index(max(naive.rates))
+        where = f"{finding.x_values[worst_index]:g} {finding.x_label.lower()}"
+        tiles.append(
+            (
+                "bad",
+                percent(naive.rates[worst_index]),
+                f"of A/A experiments declared a winner at {where}, against a "
+                f"nominal {percent(finding.nominal, 0)} - and "
+                f"{percent(finding.series_by_role('corrected').rates[worst_index])} "
+                f"once corrected",
+            )
+        )
     if validation is not None:
         passing = sum(1 for row in validation.rows if row.passed)
         tiles.append(
@@ -91,46 +89,97 @@ def _tiles(finding: Finding, validation: Validation | None) -> str:
     return f'<ul class="tiles">\n{rendered}\n</ul>'
 
 
+def _winners_curse(finding: Finding) -> str:
+    """Only the peeking record carries the stopped-effect figures, so this
+    paragraph appears where the data supports it and nowhere else."""
+    naive = finding.series_by_role("naive")
+    honest = naive.cells[0].summary.mean_absolute_estimate_when_stopped
+    worst_cell = naive.cells[naive.rates.index(max(naive.rates))]
+    inflated = worst_cell.summary.mean_absolute_estimate_when_stopped
+    if inflated is None or honest is None or finding.key != "peeking":
+        return ""
+    return (
+        f"<p>The p-value is not the only casualty. Among the experiments that "
+        f"<em>were</em> stopped as significant, the reported effect is inflated too, "
+        f"because stopping happens precisely on the noisy excursions: a mean absolute "
+        f"effect of {inflated:.3f} when peeking against {honest:.3f} with a single look, "
+        f"in a world where the true effect is exactly zero. Both are false positives; the "
+        f"peeked one claims to be more than twice as large.</p>"
+    )
+
+
 def _finding_section(finding: Finding) -> str:
+    """One finding, rendered from the record and its own labels.
+
+    Nothing here knows which mechanism it is describing. The three findings share
+    a shape - an ordered count on x, a curve that climbs away from the nominal
+    rate, a corrected curve that does not - so they share one renderer, and the
+    prose that differs between them lives in the record as ``question``.
+    """
     naive = finding.series_by_role("naive")
     corrected = finding.series_by_role("corrected")
     worst = max(naive.rates)
-    first = naive.cells[0].summary
-    worst_cell = naive.cells[naive.rates.index(worst)]
-
-    curse = ""
-    inflated = worst_cell.summary.mean_absolute_estimate_when_stopped
-    honest = first.mean_absolute_estimate_when_stopped
-    if inflated is not None and honest is not None:
-        curse = (
-            f"<p>The p-value is not the only casualty. Among the experiments that "
-            f"<em>were</em> stopped as significant, the reported effect is inflated too, "
-            f"because stopping happens precisely on the noisy excursions: a mean absolute "
-            f"effect of {inflated:.3f} when peeking against {honest:.3f} with a single "
-            f"look, in a world where the true effect is exactly zero. Both are false "
-            f"positives; the peeked one claims to be more than twice as large.</p>"
-        )
+    worst_at = finding.x_values[naive.rates.index(worst)]
+    unit = finding.x_label.lower()
 
     return f"""<section>
   <h2>{finding.title}</h2>
   <p>{finding.question}</p>
   {_table(finding_table(finding))}
-  <p>Checked once, the test does what it says: {rate_with_error(first)} against a nominal
-  {percent(finding.nominal, 0)}. Checked {finding.x_values[-1]:g} times - a fortnight of
-  glancing at a dashboard morning and evening - <strong>one A/A experiment in
-  {round(1 / worst)} is declared a winner</strong>.</p>
-  {curse}
+  <p>The first row is the control case, where there is nothing to correct and the two
+  rules should agree: {rate_with_error(naive.cells[0].summary)} against a nominal
+  {percent(finding.nominal, 0)}. By {worst_at:g} the naive rule reaches
+  {percent(worst)} - <strong>one A/A experiment in {round(1 / worst)} declared a
+  winner</strong> - while {_short_series(corrected.name).lower()} never exceeds
+  {percent(max(corrected.rates))} anywhere in the range. Every cell carries its Monte
+  Carlo error, and at these run counts a single cell two or three sigmas from its target
+  is what sampling looks like rather than a finding.</p>
+  {_winners_curse(finding)}
   <figure>
     {chart(finding)}
-    <figcaption>Same data, same alpha, same schedule of looks. The only difference is the
-    decision rule. {_short_series(naive.name)} is the fixed-horizon test read repeatedly;
-    {_short_series(corrected.name)} is valid at every look by construction.</figcaption>
+    <figcaption>Same data, same alpha, same {unit}. The only difference is the decision
+    rule: {_short_series(naive.name).lower()} against
+    {_short_series(corrected.name).lower()}.</figcaption>
   </figure>
 </section>"""
 
 
 def _short_series(name: str) -> str:
     return name.split(" (")[0]
+
+
+#: The order the claim names them in, so the page reads as one sentence rather
+#: than as whatever order a dictionary happened to produce.
+FINDING_ORDER = ("peeking", "clustering", "multiplicity")
+
+
+def _lead(findings: list[Finding]) -> str:
+    """The one paragraph under the claim, honest about how much is on the page."""
+    counted = (
+        "Each one is measured below"
+        if len(findings) == len(FINDING_ORDER)
+        else f"{len(findings)} of the three are measured below"
+    )
+    return (
+        f"Three ways an A/B experiment quietly stops being the test it claims to be. "
+        f"{counted}, on experiments with <em>no true effect at all</em>, and each is paired "
+        f"with the procedure that puts the rate back. The statistics are implemented in this "
+        f"package; <code>statsmodels</code> appears only in the test suite, as an oracle."
+    )
+
+
+def ordered_findings(record: Record) -> list[Finding]:
+    """The findings in the order the claim names them."""
+    return _ordered(record.findings)
+
+
+def _ordered(findings: dict[str, Finding]) -> list[Finding]:
+    known = [findings[key] for key in FINDING_ORDER if key in findings]
+    extra = sorted(
+        (finding for key, finding in findings.items() if key not in FINDING_ORDER),
+        key=lambda finding: finding.key,
+    )
+    return known + extra
 
 
 def _validation_section(validation: Validation) -> str:
@@ -177,7 +226,10 @@ def _not_yet_section(record: Record) -> str:
             "that are wrong, not the chance of there being one.",
         ),
     ]
-    if len(record.findings) > 1:  # pragma: no cover - the section disappears at 0.3.0
+    # The section exists only while something in the claim is unrecorded. Keyed
+    # on the findings actually present, so it disappears by itself rather than
+    # by someone remembering to delete it.
+    if all(key in record.findings for key in FINDING_ORDER):
         return ""
     items = "\n".join(
         f"  <p><strong>{title}.</strong> {body}</p>" for title, body in missing
@@ -249,24 +301,24 @@ def render(record: Record) -> str:
     """The whole page, from the record and nothing else."""
     if not record.findings:
         raise ValueError("the record contains no findings; run the examples with --record")
+    findings = _ordered(record.findings)
     peeking = record.findings["peeking"]
     worst = max(peeking.series_by_role("naive").rates)
+    worst_of_all = max(max(f.series_by_role("naive").rates) for f in findings)
 
     description = (
-        f"Checking a fixed-horizon A/B test {peeking.x_values[-1]:g} times turns a "
-        f"{percent(peeking.nominal, 0)} false positive rate into {percent(worst)}, measured "
-        f"on A/A experiments where there is no effect to find - and the sequential test "
-        f"that puts it back."
+        f"Look twice, count a user twice, or measure a second metric, and a "
+        f"{percent(peeking.nominal, 0)} test stops being one - up to "
+        f"{percent(worst_of_all)} on experiments where there is no effect to find. "
+        f"Measured here, with the correction for each."
     )
     og_description = (
         f"One A/A experiment in {round(1 / worst)} is declared a winner after "
         f"{peeking.x_values[-1]:g} looks. Measured, with the correction."
     )
 
-    sections = [
-        _tiles(peeking, record.validation),
-        _finding_section(peeking),
-    ]
+    sections = [_tiles(findings, record.validation)]
+    sections.extend(_finding_section(finding) for finding in findings)
     if record.validation is not None:
         sections.append(_validation_section(record.validation))
     sections.append(_not_yet_section(record))
@@ -276,10 +328,7 @@ def render(record: Record) -> str:
         head(f"{CLAIM} — ab-lab", description, og_description)
         + f"""<p class="eyebrow">Portfolio P2 · applied statistics · no A/B library underneath</p>
 <h1>{CLAIM}.</h1>
-<p class="lead">Three ways an A/B experiment quietly stops being the test it claims to be.
-Each one is measured here on experiments with <em>no true effect at all</em>, and each one is
-paired with the procedure that puts the rate back. The statistics are implemented in this
-package; <code>statsmodels</code> appears only in the test suite, as an oracle.</p>
+<p class="lead">{_lead(findings)}</p>
 """
         + "\n\n".join(section for section in sections if section)
         + "\n\n"

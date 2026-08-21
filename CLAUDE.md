@@ -45,10 +45,12 @@ pytest                                          # full suite
 ruff check .                                    # lint
 python examples/validation_table.py             # print the validation table
 python examples/peeking_pitfalls.py             # print the peeking table
+python examples/three_inflations.py             # print the other two
 
 # Re-measure and republish. The scripts cost minutes; the build costs milliseconds.
 python examples/peeking_pitfalls.py --record    # rewrite docs/data/findings.json
 python examples/validation_table.py --record
+python examples/three_inflations.py --record
 python -m sitegen.build                         # page, README tables and charts
 python -m sitegen.build --check                 # fail if a committed artefact is stale
 ```
