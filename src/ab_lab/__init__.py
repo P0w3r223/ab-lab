@@ -10,6 +10,10 @@ The package is organised by the question you are asking:
   really 5 000 observations?
 * :mod:`ab_lab.multiplicity` - when one experiment has many metrics: which
   of these results survive being asked all at once?
+* :mod:`ab_lab.ratio` - when the metric is a ratio of two totals: what is the
+  variance of a number whose denominator moves too?
+* :mod:`ab_lab.cuped` - before *and* after: can last month's data buy this
+  experiment a smaller sample?
 * :mod:`ab_lab.simulate` - underneath all of it: does this code actually work?
 
 One vocabulary difference to know about: design functions take
@@ -38,6 +42,7 @@ from .cluster import (
     intraclass_correlation,
     sample_size_for_clustered_mean,
 )
+from .cuped import CupedSample, cuped_t_test, cuped_theta
 from .multiplicity import (
     CORRECTIONS,
     benjamini_hochberg,
@@ -59,6 +64,7 @@ from .results import (
     ConfidenceInterval,
     MdeResult,
     MultipleComparisonResult,
+    RatioTestResult,
     SampleSizeResult,
     SequentialResult,
     SimulationSummary,
@@ -70,7 +76,7 @@ from .srm import check_srm
 
 #: Single source of truth: ``pyproject.toml`` reads this attribute rather than
 #: restating the number, so the two cannot drift at the release where it matters.
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
 __all__ = [
     "CORRECTIONS",
@@ -78,8 +84,12 @@ __all__ = [
     "ClusteredSample",
     "ClusteredSampleSizeResult",
     "ConfidenceInterval",
+    "CupedResult",
+    "CupedSample",
     "MdeResult",
     "MultipleComparisonResult",
+    "RatioSample",
+    "RatioTestResult",
     "SampleSizeResult",
     "SequentialMonitor",
     "SequentialResult",
@@ -93,6 +103,8 @@ __all__ = [
     "check_srm",
     "cluster_robust_t_test",
     "cohens_h",
+    "cuped_t_test",
+    "cuped_theta",
     "design_effect",
     "holm",
     "intraclass_correlation",
@@ -104,6 +116,7 @@ __all__ = [
     "power_t",
     "power_z",
     "proportion_test",
+    "ratio_metric_test",
     "sample_size_for_clustered_mean",
     "sample_size_for_mean",
     "sample_size_for_proportion",

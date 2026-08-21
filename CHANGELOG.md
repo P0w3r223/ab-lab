@@ -6,6 +6,75 @@ Notable changes to `ab-lab`. The reasoning behind each decision lives in
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 the project follows [semantic versioning](https://semver.org/).
 
+## [0.4.0] — 2026-08-21
+
+0.3.0 was about tests that lie. This release is about affording an answer, and
+about the metrics people actually have. It also empties the roadmap this README
+has carried since 0.1.
+
+### Added — a worked case study that ends in a decision
+
+`examples/ecommerce_case_study.py`. One checkout experiment analysed end to end,
+in the order the methods go in, on the commonest genuine dilemma in e-commerce
+testing: a change that makes **more** people buy **cheaper** things.
+
+Conversion resolves (+0.67pp against a true +0.6). Average order value resolves
+(−5.9% against a true −6.0%). Revenue per user — the only metric the decision
+depends on — does not, and its interval spans −2 453 to +89 343 across an arm.
+The script's conclusion is not "ship" or "do not ship" but that the experiment
+was never sized to answer the question, which was knowable before launch.
+
+Two things it reports rather than hides: CUPED bought 1.8% here, because revenue
+per user is 95% zeros and last month's spending cannot predict the conversion
+lottery; and writing the script surfaced a real instance of the collider trap
+from ADR 0011, when its first draft built last month's revenue *out of* this
+month's and CUPED duly reported +0.078 where the raw difference was +0.50.
+
+### Added — CUPED
+
+[ADR 0011](docs/decisions/0011-cuped-variance-reduction.md). Every other method
+here is about a test that lies; this one is about a test that is honest and
+expensive.
+
+- `ab_lab.cuped`: `CupedSample`, `cuped_theta`, `cuped_t_test`, returning a
+  `CupedResult` that reports the **realised** variance reduction, the
+  correlation, and what the adjustment is worth in traffic.
+- Measured against the promise `Var(Y_adj) = Var(Y)(1 - rho^2)`: 0.0917 at
+  rho 0.3, 0.2527 at 0.5, 0.4928 at 0.7, 0.8113 at 0.9. A covariate correlated
+  0.7 with the metric is worth **twice the sample**. At the same sample size and
+  a true effect of 0.10, power goes from 51.5% to 91.0% at rho 0.8, with the
+  estimate unmoved.
+- The trap is measured, and an earlier draft described it wrongly. A covariate
+  the experiment touched shrinks the estimate: 35% too small when half the
+  effect leaks, 70% when all of it does. But the rejection rate *collapses* with
+  it, from 80% to 13% — so the failure does not look like success, it looks like
+  a **null result**, which is the more survivable mistake because nobody
+  investigates an experiment that found nothing.
+
+### Added — ratio metrics
+
+[ADR 0010](docs/decisions/0010-ratio-metrics-delta-method.md). Most metrics
+people watch are ratios of two totals — clicks over impressions, orders over
+sessions — and `Var(Y/X)` is not `Var(Y)/X²` when the denominator moves too.
+
+- `ab_lab.ratio`: `RatioSample` and `ratio_metric_test`, returning a
+  `RatioTestResult` that carries both arms' ratios and a relative effect beside
+  the absolute one.
+- The delta method's linearised contribution `y - R*x` runs through the *same*
+  cluster-robust variance the 0.3.0 release already verified, because ADR 0006
+  arranged for it one release early by having that helper take contributions
+  rather than values. Nine lines of arithmetic, not a second sandwich.
+- Validated by **reduction rather than by a third-party oracle**: set every
+  denominator to one and the result must be `cluster_robust_t_test`, which is
+  itself checked against `statsmodels` to 1e-12. Estimate, p-value and degrees
+  of freedom are bit-identical; the statistic differs by one unit in the last
+  place, and the test says why.
+- The demonstration was wrong twice first, and the ADR records both. The naive
+  per-user t-test is **not invalid** — it answers a different question, and
+  whether that matters depends on whether exposure predicts the rate. Measured:
+  with a uniform lift the two have the same power (51.5% against 49.8%); with a
+  lift that lands on engaged users, 58.4% against 49.7%.
+
 ## [0.3.0] — 2026-08-21
 
 **A 5% test is only 5% if you look once, count each user once, and test one

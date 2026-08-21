@@ -110,15 +110,18 @@ def _cluster_totals(
     return np.bincount(inverse, weights=contributions)
 
 
-def _cluster_robust_variance(
+def cluster_robust_variance(
     contributions: NDArray[np.float64], cluster_ids: NDArray[np.int64]
 ) -> float:
     """Uncorrected sandwich variance of a mean, from per-cluster contributions.
 
-    Takes *contributions* rather than values on purpose. For a mean they are the
-    residuals ``y - ybar``; for a ratio metric they are the linearised
-    contributions ``y - R*x``, and that case becomes a wrapper around this
-    function rather than a re-derivation (ADR 0006 D7).
+    Takes *contributions* rather than values on purpose, and :mod:`ab_lab.ratio`
+    is why: for a mean they are the residuals ``y - ybar``; for a ratio metric
+    they are the linearised contributions ``y - R*x``. That foresight cost one
+    parameter name in 0.3.0 and made the delta method an addition rather than a
+    re-derivation (ADR 0006 D7). Named without an underscore for the same
+    reason - it has a second module as a caller - but not re-exported at the
+    package top level, because a caller wanting a variance wants a test.
 
     The finite-sample factor is not applied here, because it depends on the
     whole design rather than on one arm.
@@ -239,9 +242,9 @@ def cluster_robust_t_test(
     n_observations = control.values.size + treatment.values.size
     n_clusters = control.n_clusters + treatment.n_clusters
 
-    uncorrected = _cluster_robust_variance(
+    uncorrected = cluster_robust_variance(
         control.values - control.values.mean(), control.cluster_ids
-    ) + _cluster_robust_variance(
+    ) + cluster_robust_variance(
         treatment.values - treatment.values.mean(), treatment.cluster_ids
     )
     variance = _cr1_factor(n_clusters, n_observations) * uncorrected
