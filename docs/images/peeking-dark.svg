@@ -1,0 +1,52 @@
+<svg class="chart" viewBox="0 0 760 400" role="img" xmlns="http://www.w3.org/2000/svg" width="760" height="400">
+  <title>The cost of looking early - times the results are checked against the false positive rate</title>
+  <desc>Welch t-test rises from 4.9% to 25.3% as the x axis grows, while mSPRT stays at or below the nominal 5%. The same numbers are in the table beside this chart.</desc>
+  <style>.axis{stroke:#263041;stroke-width:1}.grid{stroke:#263041;stroke-width:1;stroke-dasharray:2 4}.tick,.axis-label,.nominal-label{fill:#98a3b6;font-size:12px;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif}.nominal{stroke:#98a3b6;stroke-width:1.4;stroke-dasharray:6 4}.series-naive{stroke:#f87171;fill:none;stroke-width:2.4}.series-corrected{stroke:#6ea8fe;fill:none;stroke-width:2.4;stroke-dasharray:7 4}.marker-naive{fill:#f87171}.marker-corrected{fill:#6ea8fe}.series-label{font-size:12px;font-weight:600;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif}.label-naive{fill:#f87171}.label-corrected{fill:#6ea8fe}</style>
+  <rect width="760" height="400" fill="#0f1319"/>
+  <line class="grid" x1="62" y1="346" x2="656" y2="346"/>
+  <text class="tick" x="52" y="350" text-anchor="end">0%</text>
+  <line class="grid" x1="62" y1="291.67" x2="656" y2="291.67"/>
+  <text class="tick" x="52" y="295.67" text-anchor="end">5%</text>
+  <line class="grid" x1="62" y1="237.33" x2="656" y2="237.33"/>
+  <text class="tick" x="52" y="241.33" text-anchor="end">10%</text>
+  <line class="grid" x1="62" y1="183" x2="656" y2="183"/>
+  <text class="tick" x="52" y="187" text-anchor="end">15%</text>
+  <line class="grid" x1="62" y1="128.67" x2="656" y2="128.67"/>
+  <text class="tick" x="52" y="132.67" text-anchor="end">20%</text>
+  <line class="grid" x1="62" y1="74.33" x2="656" y2="74.33"/>
+  <text class="tick" x="52" y="78.33" text-anchor="end">25%</text>
+  <line class="grid" x1="62" y1="20" x2="656" y2="20"/>
+  <text class="tick" x="52" y="24" text-anchor="end">30%</text>
+  <text class="tick" x="91.12" y="366" text-anchor="middle">1</text>
+  <text class="tick" x="120.24" y="366" text-anchor="middle">2</text>
+  <text class="tick" x="149.35" y="366" text-anchor="middle">3</text>
+  <text class="tick" x="207.59" y="366" text-anchor="middle">5</text>
+  <text class="tick" x="265.82" y="366" text-anchor="middle">7</text>
+  <text class="tick" x="353.18" y="366" text-anchor="middle">10</text>
+  <text class="tick" x="469.65" y="366" text-anchor="middle">14</text>
+  <text class="tick" x="644.35" y="366" text-anchor="middle">20</text>
+  <line class="axis" x1="62" y1="346" x2="656" y2="346"/>
+  <text class="axis-label" x="359" y="388" text-anchor="middle">Times the results are checked</text>
+  <line class="nominal" x1="62" y1="291.67" x2="656" y2="291.67"/>
+  <text class="nominal-label" x="665" y="295.67">nominal 5%</text>
+  <path class="series-naive" d="M91.12 292.75 L120.24 256.62 L149.35 223.21 L207.59 200.11 L265.82 169.69 L353.18 146.32 L469.65 105.03 L644.35 70.8"/>
+  <circle class="marker-naive" cx="91.12" cy="292.75" r="4"/>
+  <circle class="marker-naive" cx="120.24" cy="256.62" r="4"/>
+  <circle class="marker-naive" cx="149.35" cy="223.21" r="4"/>
+  <circle class="marker-naive" cx="207.59" cy="200.11" r="4"/>
+  <circle class="marker-naive" cx="265.82" cy="169.69" r="4"/>
+  <circle class="marker-naive" cx="353.18" cy="146.32" r="4"/>
+  <circle class="marker-naive" cx="469.65" cy="105.03" r="4"/>
+  <circle class="marker-naive" cx="644.35" cy="70.8" r="4"/>
+  <text class="series-label label-naive" x="653.35" y="74.8">Welch t-test</text>
+  <path class="series-corrected" d="M91.12 343.28 L120.24 340.57 L149.35 338.67 L207.59 337.31 L265.82 339.48 L353.18 332.96 L469.65 333.23 L644.35 332.69"/>
+  <rect class="marker-corrected" x="87.52" y="339.68" width="7.2" height="7.2"/>
+  <rect class="marker-corrected" x="116.64" y="336.97" width="7.2" height="7.2"/>
+  <rect class="marker-corrected" x="145.75" y="335.06" width="7.2" height="7.2"/>
+  <rect class="marker-corrected" x="203.99" y="333.71" width="7.2" height="7.2"/>
+  <rect class="marker-corrected" x="262.22" y="335.88" width="7.2" height="7.2"/>
+  <rect class="marker-corrected" x="349.58" y="329.36" width="7.2" height="7.2"/>
+  <rect class="marker-corrected" x="466.05" y="329.63" width="7.2" height="7.2"/>
+  <rect class="marker-corrected" x="640.75" y="329.09" width="7.2" height="7.2"/>
+  <text class="series-label label-corrected" x="653.35" y="336.69">mSPRT</text>
+</svg>

@@ -1,0 +1,222 @@
+{
+  "findings": {
+    "peeking": {
+      "design": {
+        "alpha": 0.05,
+        "draw": "normal(mean=0, std_dev=1), no true effect",
+        "look_counts": [
+          1,
+          2,
+          3,
+          5,
+          7,
+          10,
+          14,
+          20
+        ],
+        "n_experiments": 4000,
+        "n_per_group": 2000,
+        "seed": 20260721
+      },
+      "nominal_alpha": 0.05,
+      "question": "A fixed-horizon p-value is valid at the sample size the experiment was designed for, and nowhere else. These are A/A experiments - there is no effect to find - analysed with the same data and the same schedule of looks under two decision rules: the ordinary t-test read repeatedly, and a sequential test whose guarantee holds at every look.",
+      "recorded": {
+        "ab_lab_version": "0.3.0.dev0",
+        "numpy_version": "2.5.1",
+        "python_version": "3.12.10",
+        "recorded_on": "2026-08-21",
+        "script": "examples/peeking_pitfalls.py"
+      },
+      "series": [
+        {
+          "cells": [
+            {
+              "mean_absolute_estimate_when_stopped": 0.07374253653425658,
+              "mean_estimate": 6.200346248806669e-05,
+              "n_experiments": 4000,
+              "n_rejections": 196,
+              "x": 1
+            },
+            {
+              "mean_absolute_estimate_when_stopped": 0.09150005413447268,
+              "mean_estimate": -0.0006355166262289783,
+              "n_experiments": 4000,
+              "n_rejections": 329,
+              "x": 2
+            },
+            {
+              "mean_absolute_estimate_when_stopped": 0.10434721712622173,
+              "mean_estimate": 0.00013343012470185412,
+              "n_experiments": 4000,
+              "n_rejections": 452,
+              "x": 3
+            },
+            {
+              "mean_absolute_estimate_when_stopped": 0.12108035505245339,
+              "mean_estimate": -0.0013541162387672536,
+              "n_experiments": 4000,
+              "n_rejections": 537,
+              "x": 5
+            },
+            {
+              "mean_absolute_estimate_when_stopped": 0.13051140225577804,
+              "mean_estimate": -0.0005776157846713543,
+              "n_experiments": 4000,
+              "n_rejections": 649,
+              "x": 7
+            },
+            {
+              "mean_absolute_estimate_when_stopped": 0.14204996622454397,
+              "mean_estimate": -0.0005111620017444668,
+              "n_experiments": 4000,
+              "n_rejections": 735,
+              "x": 10
+            },
+            {
+              "mean_absolute_estimate_when_stopped": 0.15771828988950595,
+              "mean_estimate": -0.00014488901534726037,
+              "n_experiments": 4000,
+              "n_rejections": 887,
+              "x": 14
+            },
+            {
+              "mean_absolute_estimate_when_stopped": 0.1752348409623676,
+              "mean_estimate": -0.0032698446315230266,
+              "n_experiments": 4000,
+              "n_rejections": 1013,
+              "x": 20
+            }
+          ],
+          "name": "Welch t-test (fixed horizon)",
+          "role": "naive"
+        },
+        {
+          "cells": [
+            {
+              "mean_absolute_estimate_when_stopped": 0.10487870808301245,
+              "mean_estimate": 6.200346248806669e-05,
+              "n_experiments": 4000,
+              "n_rejections": 10,
+              "x": 1
+            },
+            {
+              "mean_absolute_estimate_when_stopped": 0.13139871978413645,
+              "mean_estimate": -0.0005223236625548597,
+              "n_experiments": 4000,
+              "n_rejections": 20,
+              "x": 2
+            },
+            {
+              "mean_absolute_estimate_when_stopped": 0.1479453368123519,
+              "mean_estimate": -3.153298011967445e-05,
+              "n_experiments": 4000,
+              "n_rejections": 27,
+              "x": 3
+            },
+            {
+              "mean_absolute_estimate_when_stopped": 0.17686379415142223,
+              "mean_estimate": -0.0005592258292414857,
+              "n_experiments": 4000,
+              "n_rejections": 32,
+              "x": 5
+            },
+            {
+              "mean_absolute_estimate_when_stopped": 0.14543000837734452,
+              "mean_estimate": -1.4505279128337715e-05,
+              "n_experiments": 4000,
+              "n_rejections": 24,
+              "x": 7
+            },
+            {
+              "mean_absolute_estimate_when_stopped": 0.16774373454607291,
+              "mean_estimate": 8.853942397399301e-05,
+              "n_experiments": 4000,
+              "n_rejections": 48,
+              "x": 10
+            },
+            {
+              "mean_absolute_estimate_when_stopped": 0.16231934656337824,
+              "mean_estimate": 0.0002668876872559497,
+              "n_experiments": 4000,
+              "n_rejections": 47,
+              "x": 14
+            },
+            {
+              "mean_absolute_estimate_when_stopped": 0.15144863589221125,
+              "mean_estimate": -8.732944128437677e-05,
+              "n_experiments": 4000,
+              "n_rejections": 49,
+              "x": 20
+            }
+          ],
+          "name": "mSPRT (anytime-valid)",
+          "role": "corrected"
+        }
+      ],
+      "title": "The cost of looking early",
+      "x_label": "Times the results are checked"
+    }
+  },
+  "schema_version": 1,
+  "validation": {
+    "design": {
+      "alpha": 0.05,
+      "n_experiments": 10000,
+      "seed": 20260721
+    },
+    "recorded": {
+      "ab_lab_version": "0.3.0.dev0",
+      "numpy_version": "2.5.1",
+      "python_version": "3.12.10",
+      "recorded_on": "2026-08-21",
+      "script": "examples/validation_table.py"
+    },
+    "rows": [
+      {
+        "claim": "equals",
+        "expected": 0.05,
+        "mean_absolute_estimate_when_stopped": 0.4463233688550226,
+        "mean_estimate": 0.0001449347769288428,
+        "n_experiments": 10000,
+        "n_rejections": 538,
+        "scenario": "Welch t-test, A/A (no effect)"
+      },
+      {
+        "claim": "equals",
+        "expected": 0.05,
+        "mean_absolute_estimate_when_stopped": 0.018117370892018758,
+        "mean_estimate": 4.493333333333356e-05,
+        "n_experiments": 10000,
+        "n_rejections": 497,
+        "scenario": "Two-proportion z-test, A/A (no effect)"
+      },
+      {
+        "claim": "equals",
+        "expected": 0.8064972788078826,
+        "mean_absolute_estimate_when_stopped": 0.895464090910905,
+        "mean_estimate": 0.7997864512005692,
+        "n_experiments": 10000,
+        "n_rejections": 8077,
+        "scenario": "Welch t-test, A/B (d = 0.2, n = 400)"
+      },
+      {
+        "claim": "equals",
+        "expected": 0.8,
+        "mean_absolute_estimate_when_stopped": 0.011235652324861263,
+        "mean_estimate": 0.00993598507968802,
+        "n_experiments": 10000,
+        "n_rejections": 7929,
+        "scenario": "Sample size solved for 80% power (n = 14,745/arm)"
+      },
+      {
+        "claim": "at most",
+        "expected": 0.05,
+        "mean_absolute_estimate_when_stopped": 0.16562874014136852,
+        "mean_estimate": -0.00018148147741477025,
+        "n_experiments": 10000,
+        "n_rejections": 110,
+        "scenario": "mSPRT, A/A with 10 looks (anytime-valid)"
+      }
+    ]
+  }
+}

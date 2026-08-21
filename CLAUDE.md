@@ -21,7 +21,13 @@ src/ab_lab/
   srm.py         # sample ratio mismatch (chi-square on the allocation)
   sequential.py  # mSPRT: anytime-valid p-values, SequentialMonitor
   simulate.py    # draws + p-value adapters + the A/A / A/B / peeking harness
-examples/        # scripts that regenerate the README's tables and chart
+sitegen/         # renders the page, the README tables and the SVG charts
+  record.py      #   the committed evidence: counts in, SimulationSummary out
+  charts.py      #   one chart primitive, page mode and standalone mode
+  build.py       #   pure function of files on disk; never simulates
+examples/        # scripts that measure, then --record the evidence
+docs/index.html  # generated, guarded byte for byte by tests/test_site_committed.py
+docs/data/       # the committed evidence the page is built from
 docs/decisions/  # ADRs
 CHANGELOG.md     # what changed; the ADRs say why
 ```
@@ -37,8 +43,14 @@ python -m venv .venv && source .venv/Scripts/activate
 pip install -e ".[dev]"
 pytest                                          # full suite
 ruff check .                                    # lint
-python examples/validation_table.py             # regenerate the validation table
-python examples/peeking_pitfalls.py --plot      # regenerate the peeking table + chart
+python examples/validation_table.py             # print the validation table
+python examples/peeking_pitfalls.py             # print the peeking table
+
+# Re-measure and republish. The scripts cost minutes; the build costs milliseconds.
+python examples/peeking_pitfalls.py --record    # rewrite docs/data/findings.json
+python examples/validation_table.py --record
+python -m sitegen.build                         # page, README tables and charts
+python -m sitegen.build --check                 # fail if a committed artefact is stale
 ```
 
 ## Code rules
@@ -46,7 +58,9 @@ python examples/peeking_pitfalls.py --plot      # regenerate the peeking table +
 - **Typed, documented, no magic numbers.** Type hints on every public function;
   thresholds live in named module constants with a comment explaining the value.
 - **The library never prints and never plots.** It returns frozen dataclasses.
-  Rendering belongs in `examples/` and in user code.
+  The rule's subject is `src/ab_lab/`: rendering belongs in `sitegen/`, which
+  owns every table and chart the project publishes, and the scripts in
+  `examples/` print through it rather than formatting anything themselves.
 - **Assumptions ship with the estimate.** Every `TestResult` carries an
   `assumptions` tuple. A number without its caveats is how experiments get
   misread.
@@ -73,7 +87,12 @@ python examples/peeking_pitfalls.py --plot      # regenerate the peeking table +
 - Do not change a public signature or a returned dataclass without asking.
 - Do not weaken a simulation test to make it pass. A drifting empirical rate is
   a finding, not a flaky test.
-- Do not commit generated artefacts other than `docs/images/`.
+- Do not commit generated artefacts other than `docs/images/`, `docs/index.html`
+  and `docs/data/`, each of which is guarded by a test asserting that the
+  committed bytes are what the generator produces (ADR 0007). The rule exists to
+  keep *unverifiable* artefacts out; the evidence record is its opposite - it is
+  what makes the page checkable. Never hand-edit any of them, including the
+  fenced `<!-- generated:... -->` regions of `README.md`.
 
 <!-- code-review-graph MCP tools -->
 ## MCP Tools: code-review-graph

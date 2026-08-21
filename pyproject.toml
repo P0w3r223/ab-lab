@@ -40,9 +40,6 @@ dev = [
     "hypothesis>=6.100",
     "statsmodels>=0.14",
     "ruff>=0.6",
-    # Only examples/peeking_pitfalls.py --plot needs it, but that is a
-    # documented command, so it belongs in the extra the README installs.
-    "matplotlib>=3.8",
 ]
 
 [tool.setuptools]
@@ -58,9 +55,16 @@ version = { attr = "ab_lab.__version__" }
 ab_lab = ["py.typed"]
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
+# "." puts sitegen/ and examples/ on the path: the site generator and the
+# scripts that record its evidence are both imported by tests.
+pythonpath = ["src", "."]
 testpaths = ["tests"]
-addopts = "-q"
+# The full Monte Carlo re-run is minutes, not seconds, so it is opt-in: every
+# pull request gets the cheap guards, and a weekly job runs `pytest -m slow`.
+addopts = "-q -m 'not slow'"
+markers = [
+    "slow: full re-measurement of a recorded finding; the weekly drift check",
+]
 
 [tool.ruff]
 line-length = 100

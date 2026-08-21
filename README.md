@@ -2,8 +2,18 @@
 
 [![CI](https://github.com/P0w3r223/ab-lab/actions/workflows/ci.yml/badge.svg)](https://github.com/P0w3r223/ab-lab/actions/workflows/ci.yml)
 
-**Designing and analysing A/B experiments — power, tests, bootstrap, SRM and a
-sequential test — with every method validated by simulation.**
+**A 5% test is only 5% if you look once, count each user once, and test one
+metric.**
+
+This package measures what each of those three costs — on A/A experiments where
+there is no effect to find — and implements the correction for each.
+**[Live page →](https://p0w3r223.github.io/ab-lab/)**
+
+Looking early is measured below. Counting each user once and testing one metric
+are designed, with their derivations written down before the code exists so the
+simulation has something falsifiable to contradict
+([ADR 0006](docs/decisions/0006-three-mechanisms-of-alpha-inflation.md)); they
+land in 0.3.0.
 
 Most A/B mistakes are not coding mistakes. They are an experiment sized for an
 effect nobody would act on, a "significant" result read off a dashboard on day
@@ -21,9 +31,11 @@ them would defeat it ([ADR 0001](docs/decisions/0001-no-statsmodels-at-runtime.m
 Checking a fixed-horizon test repeatedly and stopping at the first significant
 reading does not reach the answer faster. It changes the test:
 
-A/A experiments — **no true effect at all** — with 2 000 units per arm, alpha
-0.05, 4 000 runs per cell:
+<!-- generated:peeking-preamble -->
+A/A experiments - **no true effect at all** - with 2,000 units per arm, alpha 0.05, 4,000 runs per cell:
+<!-- /generated:peeking-preamble -->
 
+<!-- generated:peeking -->
 | Times the results are checked | Welch t-test (fixed horizon) | mSPRT (anytime-valid) |
 |---|---|---|
 | 1 | 4.9% (±0.3%) | 0.2% (±0.1%) |
@@ -34,6 +46,7 @@ A/A experiments — **no true effect at all** — with 2 000 units per arm, alph
 | 10 | 18.4% (±0.6%) | 1.2% (±0.2%) |
 | 14 | 22.2% (±0.7%) | 1.2% (±0.2%) |
 | 20 | **25.3%** (±0.7%) | 1.2% (±0.2%) |
+<!-- /generated:peeking -->
 
 Checked once, the test does what it says: 4.9% against a nominal 5%. Checked
 twenty times — a fortnight of glancing at a dashboard morning and evening —
@@ -46,10 +59,17 @@ precisely on the noisy excursions: mean |effect| of 0.175 when peeking against
 Both numbers are false positives; the peeked one claims to be more than twice
 as large.
 
-![False positive rate against the number of looks](docs/images/peeking.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/peeking-dark.svg">
+  <img alt="False positive rate against the number of looks: the fixed-horizon test climbs
+  from 5% to 25% while the anytime-valid one stays near 1%"
+  src="docs/images/peeking-light.svg">
+</picture>
 
 Same data, same alpha, same schedule of looks — the only difference is the
-decision rule. Reproduce with `python examples/peeking_pitfalls.py --plot`.
+decision rule. The chart is generated SVG rather than an image file, so it
+follows the reader's colour scheme and every coordinate in it comes from the
+committed record. Reproduce with `python examples/peeking_pitfalls.py`.
 
 ## How do I know this code is right?
 
@@ -58,16 +78,19 @@ arithmetic (in `tests/`), and against a simulated world where the truth is
 known. The second table is the one that matters, because it tests the choice of
 formula and not just its transcription:
 
-10 000 simulated experiments per row, seed 20260721. "MC error" is the standard
-error of the empirical rate — the noise floor of the run itself:
+<!-- generated:validation-preamble -->
+10,000 simulated experiments per row, seed 20260721. "MC error" is the standard error of the empirical rate - the noise floor of the run itself:
+<!-- /generated:validation-preamble -->
 
+<!-- generated:validation -->
 | Scenario | Claim | Empirical | MC error | Verdict |
 |---|---|---|---|---|
 | Welch t-test, A/A (no effect) | = 0.0500 | 0.0538 | ±0.0023 | pass |
 | Two-proportion z-test, A/A (no effect) | = 0.0500 | 0.0497 | ±0.0022 | pass |
 | Welch t-test, A/B (d = 0.2, n = 400) | = 0.8065 | 0.8077 | ±0.0039 | pass |
-| Sample size solved for 80% power (n = 14 745/arm) | = 0.8000 | 0.7929 | ±0.0041 | pass |
+| Sample size solved for 80% power (n = 14,745/arm) | = 0.8000 | 0.7929 | ±0.0041 | pass |
 | mSPRT, A/A with 10 looks (anytime-valid) | ≤ 0.0500 | 0.0110 | ±0.0010 | pass |
+<!-- /generated:validation -->
 
 Note the last row's claim. A fixed-horizon test promises its false positive
 rate *equals* alpha; an anytime-valid test promises only that it stays *at
@@ -151,6 +174,8 @@ src/ab_lab/
   srm.py         # sample ratio mismatch (chi-square on the allocation)
   sequential.py  # mSPRT: anytime-valid p-values, SequentialMonitor
   simulate.py    # draws + p-value adapters + the A/A / A/B / peeking harness
+sitegen/         # renders the page, the tables above and the chart, from
+                 # docs/data/findings.json — never simulates, never guesses
 ```
 
 The library never prints and never plots — it returns data. Every table above is

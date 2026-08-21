@@ -12,6 +12,38 @@ Foundations for the 0.3.0 release described in
 [ADR 0006](docs/decisions/0006-three-mechanisms-of-alpha-inflation.md). No
 statistical method changed; every published number is unchanged.
 
+### Added — the page is generated
+
+[ADR 0007](docs/decisions/0007-the-page-is-generated.md). `docs/index.html` was
+hand-written, in a package whose argument is that every table it publishes is
+regenerable, and one validation row already existed in three different formats
+across the script, the README and the page.
+
+- `sitegen/` renders the page, the README's fenced tables and the charts from
+  `docs/data/findings.json`, which `examples/*.py --record` writes. The record
+  stores **counts, never rates**: `SimulationSummary` derives every percentage,
+  so no surface can disagree with the test suite about what a rate is.
+- The chart is inline SVG that follows `prefers-color-scheme`, replacing a PNG
+  that could not. `docs/images/peeking.png` is deleted and the README references
+  two generated SVGs through `<picture>`.
+- Four guards on every pull request: the committed bytes match the generator;
+  the recorded design matches the scripts' constants; the generator provably
+  never simulates (a subprocess asserts `ab_lab.simulate` never loaded); and two
+  cells are replayed at a tenth of size. A weekly workflow re-measures
+  everything at full size and compares rates within Monte Carlo error.
+- The page now carries a `meta description`, Open Graph and Twitter tags, an
+  inline icon, dark mode, and **zero external-origin resources** — it previously
+  fetched Google Fonts. The README links the live page from its first screen,
+  which it had never done.
+
+### Changed
+
+- `examples/*.py` gained `--record` and lost `--plot`; they print through the
+  same renderer as the page rather than formatting tables themselves, which
+  amends [ADR 0004](docs/decisions/0004-scripts-instead-of-notebooks.md) on
+  where the formatter lives. Every previously documented command still works.
+- `matplotlib` left the `dev` extra; the `--plot` flag was its only user.
+
 ### Changed — breaking
 
 - `mde_for_mean` and `mde_for_proportion` return an `MdeResult` instead of a
