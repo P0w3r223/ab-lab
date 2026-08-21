@@ -221,6 +221,49 @@ while the rest are read raw controls nothing. `benjamini_hochberg` is also
 available and controls a *different* thing — the expected share of the
 rejections that are false, not the chance of there being one.
 
+**When the metric is a ratio** — clicks over impressions, orders over sessions.
+
+```python
+from ab_lab.ratio import RatioSample, ratio_metric_test
+
+control = RatioSample.from_arrays(clicks, impressions, user_ids)
+treatment = RatioSample.from_arrays(other_clicks, other_impressions, other_user_ids)
+
+result = ratio_metric_test(control, treatment)
+print(result.control_ratio, result.treatment_ratio)
+print(result.estimate, result.relative_effect)   # absolute and "+20%", both
+```
+
+**Before you buy more traffic** — can last month's data pay for this experiment?
+
+```python
+from ab_lab.cuped import CupedSample, cuped_t_test
+
+control = CupedSample.from_arrays(revenue_now, revenue_last_month)
+treatment = CupedSample.from_arrays(other_revenue_now, other_revenue_last_month)
+
+result = cuped_t_test(control, treatment)
+print(result.variance_reduction)            # 0.49 at a correlation of 0.7
+print(result.effective_sample_multiplier)   # 1.97 -> worth twice the traffic
+print(result.estimate, result.unadjusted_estimate)   # these should agree
+```
+
+The covariate has to be measured **before** the treatment could touch it. One
+that the experiment influenced sits on the causal path, and adjusting for it
+subtracts part of the effect along with the noise: on a true effect of 0.10, with
+half of it leaking into the covariate, the estimate comes back 35% too small and
+the rejection rate falls from 80% to 44%. The failure does not look like a false
+positive — it looks like a clean null, which is why it survives review
+([ADR 0011](docs/decisions/0011-cuped-variance-reduction.md)).
+
+The estimand is the **ratio of totals**, which weights a user by their
+denominator — not the mean of per-user ratios, which does not. One user clicking
+1 of 1 and another clicking 10 of 100 give 10.9% one way and 55% the other; both
+are defensible numbers and only one of them is the click-through rate. Whether
+the choice changes your answer is an empirical question about your population,
+and [ADR 0010](docs/decisions/0010-ratio-metrics-delta-method.md) measures both
+sides of it.
+
 ## Architecture
 
 ```
@@ -233,6 +276,8 @@ src/ab_lab/
   cluster.py     # repeated measurements per user: CR1 sandwich, design effect,
                  # and the sample size that accounts for it
   multiplicity.py # many metrics at once: Bonferroni, Holm, Benjamini-Hochberg
+  ratio.py       # metrics that are a ratio of two totals: the delta method
+  cuped.py       # variance reduction from a pre-experiment covariate
   simulate.py    # draws + p-value adapters + the A/A / A/B / peeking harness
 sitegen/         # renders the page, the tables above and the chart, from
                  # docs/data/findings.json — never simulates, never guesses
@@ -285,10 +330,22 @@ README are assertions in `tests/`. Rendering lives in `examples/`.
 
 Tracked as issues labelled `roadmap`:
 
-1. CUPED variance reduction using a pre-experiment covariate.
-2. Ratio metrics via the delta method, reusing the cluster-robust variance.
-3. A worked e-commerce case study: conversion and average order value together,
-   ending in a business decision rather than a p-value.
+The four items this file has carried since 0.1 are done. What is left is what
+the ADRs named while deciding *not* to do it yet, which is a different and more
+honest kind of list:
+
+1. **A cluster bootstrap**, resampling whole units. It would complete the family
+   the package already has two thirds of - independent, paired, clustered
+   ([ADR 0008](docs/decisions/0008-cluster-robust-variance.md)).
+2. **Compounding the three mechanisms.** Peeking at clustered data, sequential
+   testing across a metric suite. The 0.3.0 thesis is that the three are
+   independent, not that they compose, and demonstrating composition needs a
+   runner that can slice a prefix without cutting a user in half
+   ([ADR 0006](docs/decisions/0006-three-mechanisms-of-alpha-inflation.md) D7).
+3. **CUPED on a clustered or ratio metric.** It composes with both in principle;
+   nothing here has measured it, and
+   [ADR 0011](docs/decisions/0011-cuped-variance-reduction.md) says so rather
+   than implying the composition is free.
 
 ## License
 

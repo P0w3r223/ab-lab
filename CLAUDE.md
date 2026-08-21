@@ -20,6 +20,10 @@ src/ab_lab/
   analyze.py     # post-hoc: Welch, two-proportion z, Mann-Whitney, bootstrap
   srm.py         # sample ratio mismatch (chi-square on the allocation)
   sequential.py  # mSPRT: anytime-valid p-values, SequentialMonitor
+  cluster.py     # repeated measurements per unit: CR1 sandwich, design effect
+  multiplicity.py # many metrics: Bonferroni, Holm, Benjamini-Hochberg
+  ratio.py       # ratios of two totals: the delta method over cluster.py
+  cuped.py       # variance reduction from a pre-experiment covariate
   simulate.py    # draws + p-value adapters + the A/A / A/B / peeking harness
 sitegen/         # renders the page, the README tables and the SVG charts
   record.py      #   the committed evidence: counts in, SimulationSummary out
@@ -46,6 +50,7 @@ ruff check .                                    # lint
 python examples/validation_table.py             # print the validation table
 python examples/peeking_pitfalls.py             # print the peeking table
 python examples/three_inflations.py             # print the other two
+python examples/ecommerce_case_study.py         # one experiment, end to end
 
 # Re-measure and republish. The scripts cost minutes; the build costs milliseconds.
 python examples/peeking_pitfalls.py --record    # rewrite docs/data/findings.json

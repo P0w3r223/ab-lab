@@ -29,8 +29,10 @@ from numpy.typing import NDArray
 from ._validation import check_alpha
 from .analyze import proportion_test, welch_t_test
 from .cluster import ClusteredSample, cluster_robust_t_test
+from .cuped import CupedSample, cuped_t_test
 from .multiplicity import Correction
-from .results import SimulationSummary
+from .ratio import RatioSample, ratio_metric_test
+from .results import SimulationSummary, TestResult
 from .sequential import msprt
 
 Draw = Callable[[np.random.Generator], tuple[NDArray[np.float64], NDArray[np.float64]]]
@@ -49,6 +51,18 @@ ClusteredPValueFn = Callable[[ClusteredSample, ClusteredSample], float]
 #: it and this contract exists.
 SuiteDraw = Callable[[np.random.Generator], tuple[NDArray[np.float64], NDArray[np.float64]]]
 SuitePValueFn = Callable[[NDArray[np.float64], NDArray[np.float64]], tuple[float, ...]]
+
+#: A ratio metric carries two columns per observation, so it needs its own draw
+#: contract for the same reason the clustered one does. The tally and the summary
+#: type stay shared (ADR 0006 D1).
+RatioDraw = Callable[[np.random.Generator], tuple[RatioSample, RatioSample]]
+RatioPValueFn = Callable[[RatioSample, RatioSample], float]
+
+#: CUPED needs the *estimate* each analysis produced, not only its p-value,
+#: because the failure it is checked against is a biased point estimate arriving
+#: with a tighter interval. So this contract returns the whole result.
+CupedDraw = Callable[[np.random.Generator], tuple[CupedSample, CupedSample]]
+CupedTestFn = Callable[[CupedSample, CupedSample], TestResult]
 
 #: What the harness should report as "the effect", given one experiment's data.
 EstimateFn = Callable[[NDArray[np.float64], NDArray[np.float64]], float]
@@ -304,6 +318,209 @@ def correlated_normal_suite_draw(
         return one_arm(rng, np.zeros(n_metrics)), one_arm(rng, lifts)
 
     return draw
+
+
+def clustered_ratio_draw(
+    n_clusters_per_group: int,
+    trials_per_cluster: int | Callable[[np.random.Generator, int], NDArray[np.int64]],
+    base_rate: float,
+    rate_dispersion: float = 0.0,
+    absolute_lift: float = 0.0,
+    lift_scales_with_exposure: bool = False,
+) -> RatioDraw:
+    """Draw a click-through-rate-like metric: successes over trials, per unit.
+
+    Args:
+        trials_per_cluster: Impressions per user, as a constant or a callable
+            drawing one count per unit. **A constant makes this a bad test**,
+            and that is worth saying rather than leaving to be discovered: when
+            every unit contributes the same denominator, the ratio of totals is
+            *identically* the mean of per-unit ratios, so the two estimands
+            coincide and nothing here has anything to do. Pass
+            :func:`poisson_cluster_size` for the case that matters.
+        rate_dispersion: Spread of each unit's own rate around ``base_rate``.
+            Zero makes every user identical; positive values are what a real
+            population looks like and are what the sandwich has to survive.
+        lift_scales_with_exposure: Give a unit a lift proportional to its share
+            of the mean exposure, so the treatment helps engaged users more than
+            occasional ones. **This is the only setting in which the choice of
+            estimand changes the answer**, and it is a parameter rather than an
+            assumption because that fact is easy to state and easy to disbelieve:
+            when a unit's rate is independent of how much it is exposed, the
+            ratio of totals and the mean of per-unit ratios agree to the fourth
+            decimal and the two analyses have the same power. Correlate the two
+            and they answer different questions.
+
+    Each unit gets its own rate, then binomial trials at that rate - so outcomes
+    are correlated within a unit and heterogeneous across units, which is the
+    joint problem this metric has.
+    """
+    if n_clusters_per_group < 2:
+        raise ValueError(f"n_clusters_per_group must be at least 2, got {n_clusters_per_group}")
+    if not callable(trials_per_cluster) and trials_per_cluster < 1:
+        raise ValueError(f"trials_per_cluster must be at least 1, got {trials_per_cluster}")
+    if not 0.0 < base_rate < 1.0:
+        raise ValueError(f"base_rate must be in (0, 1), got {base_rate}")
+    if rate_dispersion < 0.0:
+        raise ValueError(f"rate_dispersion must be non-negative, got {rate_dispersion}")
+
+    def one_arm(rng: np.random.Generator, lift: float, first_id: int) -> RatioSample:
+        trials = (
+            trials_per_cluster(rng, n_clusters_per_group)
+            if callable(trials_per_cluster)
+            else np.full(n_clusters_per_group, trials_per_cluster, dtype=np.int64)
+        )
+        drawn = (
+            rng.normal(base_rate, rate_dispersion, n_clusters_per_group)
+            if rate_dispersion
+            else np.full(n_clusters_per_group, base_rate)
+        )
+        if lift and lift_scales_with_exposure:
+            drawn = drawn + lift * trials / max(float(trials.mean()), 1e-12)
+        elif lift:
+            drawn = drawn + lift
+        per_unit = np.clip(drawn, 1e-6, 1.0 - 1e-6)
+        successes = rng.binomial(trials, per_unit).astype(np.float64)
+        ids = np.arange(n_clusters_per_group, dtype=np.int64) + first_id
+        return RatioSample(
+            numerator=successes,
+            denominator=trials.astype(np.float64),
+            cluster_ids=ids,
+        )
+
+    def draw(rng: np.random.Generator) -> tuple[RatioSample, RatioSample]:
+        return (
+            one_arm(rng, 0.0, 0),
+            one_arm(rng, absolute_lift, n_clusters_per_group),
+        )
+
+    return draw
+
+
+def ratio_p_value(control: RatioSample, treatment: RatioSample) -> float:
+    """Adapter: the delta-method ratio test as a bare p-value."""
+    return ratio_metric_test(control, treatment).p_value
+
+
+def naive_ratio_p_value(control: RatioSample, treatment: RatioSample) -> float:
+    """Adapter: the mistake - a Welch test on each unit's own ratio.
+
+    What happens when a table already has a per-user rate column and somebody
+    runs a t-test on it. Two things go wrong at once: the estimand becomes the
+    mean of per-unit ratios rather than the ratio of totals, and every unit is
+    weighted equally however little data it contributed.
+    """
+    return welch_t_test(
+        control.numerator / control.denominator,
+        treatment.numerator / treatment.denominator,
+    ).p_value
+
+
+def run_ratio_experiments(
+    draw: RatioDraw,
+    p_value_fn: RatioPValueFn,
+    n_experiments: int,
+    rng: np.random.Generator,
+    alpha: float = 0.05,
+    label: str = "ratio metric",
+) -> SimulationSummary:
+    """Run many ratio-metric experiments, each analysed once at the end."""
+    _check_run(n_experiments, alpha)
+    tally = _Tally(n_experiments, alpha, label)
+
+    for _ in range(n_experiments):
+        control, treatment = draw(rng)
+        estimate = treatment.ratio - control.ratio
+        tally.record(estimate, _checked_p_value(p_value_fn, control, treatment) < alpha)
+
+    return tally.summarise()
+
+
+def covariate_draw(
+    n_per_group: int,
+    correlation: float,
+    std_dev: float = 1.0,
+    absolute_lift: float = 0.0,
+    treatment_leaks_into_covariate: float = 0.0,
+) -> CupedDraw:
+    """Draw a metric alongside a covariate measured before the experiment.
+
+    Args:
+        correlation: Between the covariate and the metric. The variance CUPED
+            can remove is its square, so this is the whole economics of the
+            technique in one number.
+        treatment_leaks_into_covariate: Fraction of the treatment effect that
+            also shows up in the "pre-experiment" covariate. **Zero is the only
+            honest setting**; anything else is the mistake CUPED invites, and it
+            is a parameter so the mistake can be measured rather than described.
+            A covariate the experiment touched sits on the causal path: adjusting
+            for it subtracts part of the effect along with the noise, so the
+            estimate shrinks toward zero and the experiment reports a null.
+
+    The covariate is standard normal; the metric is that covariate scaled by the
+    correlation plus independent noise, so the marginal variance is ``std_dev**2``
+    whatever the correlation - the same discipline the clustered draw follows, and
+    for the same reason.
+    """
+    if n_per_group < 2:
+        raise ValueError(f"n_per_group must be at least 2, got {n_per_group}")
+    if not -1.0 < correlation < 1.0:
+        raise ValueError(f"correlation must be in (-1, 1), got {correlation}")
+    if std_dev <= 0.0:
+        raise ValueError(f"std_dev must be positive, got {std_dev}")
+
+    explained, unexplained = correlation, np.sqrt(1.0 - correlation**2)
+
+    def one_arm(rng: np.random.Generator, lift: float) -> CupedSample:
+        covariate = rng.normal(0.0, 1.0, n_per_group)
+        noise = rng.normal(0.0, 1.0, n_per_group)
+        metric = std_dev * (explained * covariate + unexplained * noise) + lift
+        observed_covariate = covariate + treatment_leaks_into_covariate * lift
+        return CupedSample(metric=metric, covariate=observed_covariate)
+
+    def draw(rng: np.random.Generator) -> tuple[CupedSample, CupedSample]:
+        return one_arm(rng, 0.0), one_arm(rng, absolute_lift)
+
+    return draw
+
+
+def cuped_test(control: CupedSample, treatment: CupedSample) -> TestResult:
+    """Adapter: the covariate-adjusted test."""
+    return cuped_t_test(control, treatment)
+
+
+def unadjusted_test(control: CupedSample, treatment: CupedSample) -> TestResult:
+    """Adapter: the same experiment analysed without the covariate."""
+    return welch_t_test(control.metric, treatment.metric)
+
+
+def run_cuped_experiments(
+    draw: CupedDraw,
+    test_fn: CupedTestFn,
+    n_experiments: int,
+    rng: np.random.Generator,
+    alpha: float = 0.05,
+    label: str = "covariate-adjusted",
+) -> SimulationSummary:
+    """Run many experiments, recording what each analysis *estimated*.
+
+    The only runner that takes a whole result rather than a p-value, because the
+    failure being checked here is a point estimate shrunk toward zero. A
+    rejection rate alone cannot tell that apart from an experiment that simply
+    had no effect to find, which is exactly what makes the mistake survivable.
+    """
+    _check_run(n_experiments, alpha)
+    tally = _Tally(n_experiments, alpha, label)
+
+    for _ in range(n_experiments):
+        control, treatment = draw(rng)
+        result = test_fn(control, treatment)
+        p_value = float(result.p_value)
+        if not np.isfinite(p_value):
+            raise ValueError(f"{result.test} returned a non-finite p-value")
+        tally.record(float(result.estimate), p_value < alpha)
+
+    return tally.summarise()
 
 
 def welch_p_value(control: NDArray[np.float64], treatment: NDArray[np.float64]) -> float:
@@ -644,7 +861,7 @@ def _checked_p_value(p_value_fn, control, treatment) -> float:  # noqa: ANN001
 
 
 def _observation_count(sample) -> int:  # noqa: ANN001
-    values = getattr(sample, "values", sample)
+    values = getattr(sample, "values", getattr(sample, "numerator", sample))
     return int(values.size)
 
 
