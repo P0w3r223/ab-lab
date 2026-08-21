@@ -17,6 +17,7 @@ import numpy as np
 import pytest
 
 from ab_lab.cluster import sample_size_for_clustered_mean
+from ab_lab.multiplicity import CORRECTIONS
 from ab_lab.power import power_t, power_z, sample_size_for_proportion
 from ab_lab.results import SimulationSummary
 from ab_lab.sequential import tau_from_mde
@@ -24,6 +25,7 @@ from ab_lab.simulate import (
     binary_draw,
     cluster_robust_p_value,
     clustered_normal_draw,
+    correlated_normal_suite_draw,
     lognormal_draw,
     msprt_p_value,
     naive_welch_p_value,
@@ -33,11 +35,18 @@ from ab_lab.simulate import (
     proportion_p_value,
     run_clustered_experiments,
     run_experiments,
+    run_metric_suite,
     run_with_peeking,
     welch_p_value,
+    welch_suite_p_values,
 )
 
 ALPHA = 0.05
+
+#: Ten Welch tests per experiment, so these runs cost about ten times a
+#: single-metric one. Sized for the sharpest claim in the file - the exact
+#: 1 - 0.95**10 - and no larger.
+SUITE_EXPERIMENTS = 1_000
 
 
 def test_welch_holds_its_nominal_type_i_error_on_aa_data():
@@ -467,3 +476,118 @@ def test_sizing_without_the_design_effect_would_have_been_under_powered():
         label="A/B clustered, sized as if independent",
     )
     assert achieved.rejection_rate < 0.80 - 4.0 * achieved.monte_carlo_error
+
+
+def test_reading_ten_metrics_at_five_percent_is_not_a_five_percent_test():
+    """The third mechanism. The claim is sharp, not directional.
+
+    Under a global null with K independent metrics the chance of at least one
+    rejection is exactly 1 - (1 - alpha)**K. Asserting "greater than alpha" would
+    pass for a badly broken harness; asserting the exact number does not.
+    """
+    uncorrected = run_metric_suite(
+        draw=correlated_normal_suite_draw(n_per_group=400, n_metrics=10, correlation=0.0),
+        p_value_fn=welch_suite_p_values,
+        n_experiments=SUITE_EXPERIMENTS,
+        rng=np.random.default_rng(401),
+        alpha=ALPHA,
+        label="10 metrics, read as ten separate tests",
+    )
+
+    assert uncorrected.n_comparisons == 10
+    assert uncorrected.agrees_with(1.0 - (1.0 - ALPHA) ** 10)
+
+
+def test_holm_puts_the_family_wise_error_rate_back():
+    corrected = run_metric_suite(
+        draw=correlated_normal_suite_draw(n_per_group=400, n_metrics=10, correlation=0.0),
+        p_value_fn=welch_suite_p_values,
+        n_experiments=SUITE_EXPERIMENTS,
+        rng=np.random.default_rng(402),
+        alpha=ALPHA,
+        correction=CORRECTIONS["holm"],
+        label="10 metrics, Holm",
+    )
+    assert corrected.agrees_with(ALPHA, claim="at most")
+
+
+def test_the_false_discovery_rate_is_a_different_promise_from_the_family_wise_one():
+    """Five true nulls and five real effects - the only setting that separates them.
+
+    Under a *complete* null the false discovery rate and the family-wise rate
+    coincide, so Benjamini-Hochberg is indistinguishable from Holm and the
+    demonstration says nothing. Under a partial null the difference is visible,
+    and measuring it needs `family_wise_error_rate` rather than `rejection_rate`:
+    with five real effects present, nearly every experiment rejects *something*
+    whatever the correction does, so the plain rejection rate is close to 1 for
+    both procedures and distinguishes nothing.
+    """
+    is_null = [True] * 5 + [False] * 5
+    draw = correlated_normal_suite_draw(
+        n_per_group=400,
+        n_metrics=10,
+        correlation=0.0,
+        absolute_lifts=[0.0] * 5 + [0.35] * 5,
+    )
+
+    def suite(name, seed):
+        return run_metric_suite(
+            draw=draw,
+            p_value_fn=welch_suite_p_values,
+            n_experiments=SUITE_EXPERIMENTS,
+            rng=np.random.default_rng(seed),
+            alpha=ALPHA,
+            correction=CORRECTIONS[name],
+            is_null=is_null,
+            label=f"partial null, {name}",
+        )
+
+    discovery = suite("benjamini-hochberg", 404)
+    family_wise = suite("holm", 404)
+
+    # Both find things, so the plain rejection rate says nothing here.
+    assert discovery.rejection_rate > 0.9
+    assert family_wise.rejection_rate > 0.9
+
+    # BH keeps the promise it makes: the share of rejections that are wrong.
+    assert discovery.mean_false_discovery_proportion <= ALPHA
+    # ... and visibly breaks the one it never made.
+    assert discovery.family_wise_error_rate > ALPHA + 4.0 * (
+        discovery.family_wise_monte_carlo_error()
+    )
+    # Holm keeps that one instead, and pays for it with fewer discoveries.
+    assert family_wise.family_wise_error_rate <= ALPHA + 3.0 * (
+        family_wise.family_wise_monte_carlo_error()
+    )
+    assert family_wise.family_wise_error_rate < discovery.family_wise_error_rate
+
+
+@pytest.mark.slow
+def test_bonferroni_also_holds_but_pays_for_its_generality_under_correlation():
+    """Validity under any dependence is bought somewhere, and this is where.
+
+    Marked slow: it is a second confirmation of a guarantee Holm already
+    demonstrates on every pull request, plus one measurement of the price. The
+    weekly job runs it.
+    """
+    independent = run_metric_suite(
+        draw=correlated_normal_suite_draw(n_per_group=400, n_metrics=10, correlation=0.0),
+        p_value_fn=welch_suite_p_values,
+        n_experiments=3_000,
+        rng=np.random.default_rng(405),
+        alpha=ALPHA,
+        correction=CORRECTIONS["bonferroni"],
+        label="10 independent metrics, Bonferroni",
+    )
+    correlated = run_metric_suite(
+        draw=correlated_normal_suite_draw(n_per_group=400, n_metrics=10, correlation=0.8),
+        p_value_fn=welch_suite_p_values,
+        n_experiments=3_000,
+        rng=np.random.default_rng(406),
+        alpha=ALPHA,
+        correction=CORRECTIONS["bonferroni"],
+        label="10 correlated metrics, Bonferroni",
+    )
+
+    assert independent.agrees_with(ALPHA, claim="at most")
+    assert correlated.rejection_rate < ALPHA - 3.0 * correlated.monte_carlo_error

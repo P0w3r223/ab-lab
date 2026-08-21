@@ -31,7 +31,7 @@ through the same summary object, and rendered in the same table.
 |---|---|---|---|---|
 | Peeking, 20 looks | 5% | **25.3%** | mSPRT | 1.2% |
 | Clustering, ICC 0.30, 10 rows/user | 5% | **32.3%** (±1.1) | cluster-robust SE | 5.4% (±0.5) |
-| Metric suite, 10 independent metrics | 5% | **40.7%** (±0.8) | Holm | ≤5% |
+| Metric suite, 10 independent metrics | 5% | **39.4%** (±1.6) | Holm | 5.2% (±0.7) |
 
 Row one comes from `examples/peeking_pitfalls.py` at 4 000 runs per cell. Rows
 two and three were derived arithmetically while writing this ADR and then
@@ -44,13 +44,21 @@ the design could be contradicted before it was built:
 | the same experiment analysed per user | 0.0500 | 0.0503 ± 0.0040 | 0.1σ |
 | uncorrected family-wise rate, K = 10 | 0.4013 | 0.4073 ± 0.0078 | 0.8σ |
 
-The first two rows have since been **superseded by the implementation**, which
-is what the headline table above now quotes: the pilot used Welch on cluster
-means as its corrected arm, exact only for balanced clusters, where the shipped
-code uses the CR1 sandwich. The shipped numbers are 0.3230 ± 0.0105 naive
-(1.4σ from the derivation) and 0.0540 ± 0.0051 corrected (0.8σ from alpha) —
-the same conclusion, measured by the code that will actually run. The pilot rows
-are kept because a prediction is only evidence if it stays visible after the
+Every row has since been **superseded by the implementation**, which is what the
+headline table above now quotes. The pilot used Welch on cluster means as its
+corrected arm — exact only for balanced clusters — where the shipped code uses
+the CR1 sandwich, and it ran the metric suite at a different size. The shipped
+numbers:
+
+| Claim | Derived | Shipped code | Distance |
+|---|---|---|---|
+| naive Welch on clustered rows, A/A | 0.3082 | 0.3230 ± 0.0105 | 1.4σ |
+| the same, cluster-robust | 0.0500 | 0.0540 ± 0.0051 | 0.8σ |
+| uncorrected family-wise rate, K = 10 | 0.4013 | 0.3940 ± 0.0155 | 0.5σ |
+| the same, Holm | ≤ 0.0500 | 0.0520 ± 0.0070 | 0.3σ |
+
+Same conclusions, measured by the code that actually runs. The pilot rows are
+kept above because a prediction is only evidence if it stays visible after the
 measurement arrives.
 
 Derivations, kept because the *agreement* is the evidence and a lone measurement
