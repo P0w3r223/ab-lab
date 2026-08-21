@@ -6,12 +6,20 @@ empirical rejection rate to the rate the theory promises.
 
 Usage::
 
-    python examples/validation_table.py
+    python examples/validation_table.py             # print the table
+    python examples/validation_table.py --record    # also write the evidence
+
+``--record`` writes the validation section of ``docs/data/findings.json``, which
+the published page and the README's table are built from (ADR 0007).
 """
 
 from __future__ import annotations
 
+import argparse
+import datetime
+import sys
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 
@@ -27,6 +35,14 @@ from ab_lab.simulate import (
     run_with_peeking,
     welch_p_value,
 )
+
+# Running a file puts *its own* directory on the path, not the project root, so
+# `python examples/...` cannot see the site generator that owns the table
+# formatting. pytest gets this from `pythonpath` in pyproject; a script has to
+# say it out loud, and it is kept to one import so the noqa stays local.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from sitegen import markdown, record  # noqa: E402
 
 ALPHA = 0.05
 N_EXPERIMENTS = 10_000
@@ -48,18 +64,20 @@ class Row:
     summary: SimulationSummary
     claim: Claim = "equals"
 
-    def as_markdown(self) -> str:
-        # The verdict comes from the summary itself, so this table, the test
-        # suite and the published page cannot disagree about what "pass" means.
-        # It also validates ``claim`` - hence before the symbol is chosen.
-        passed = self.summary.agrees_with(self.expected, self.claim)
-        symbol = "=" if self.claim == "equals" else "<="
-        rate = self.summary.rejection_rate
-        error = self.summary.monte_carlo_error
-        return (
-            f"| {self.scenario} | {symbol} {self.expected:.4f} | {rate:.4f} | +/-{error:.4f} "
-            f"| {'pass' if passed else 'CHECK'} |"
-        )
+    def as_payload(self) -> dict:
+        """One row as evidence: the claim, and the counts that test it.
+
+        No rate and no verdict is stored. Both are derived at render time by
+        ``SimulationSummary``, which is also what the test suite asserts
+        against - so the page cannot call a row "pass" that the suite would
+        not.
+        """
+        return {
+            "scenario": self.scenario,
+            "expected": self.expected,
+            "claim": self.claim,
+            **record.counts_of(self.summary),
+        }
 
 
 def build_rows(rng: np.random.Generator) -> list[Row]:
@@ -138,18 +156,46 @@ def build_rows(rng: np.random.Generator) -> list[Row]:
     return rows
 
 
-def main() -> None:
-    rng = np.random.default_rng(SEED)
-    rows = build_rows(rng)
-
+def payload(rows: list[Row], recorded_on: str) -> dict:
+    """The validation section as evidence: the design, and one entry per claim."""
     counts = {row.summary.n_experiments for row in rows}
     if len(counts) != 1:
         raise ValueError(f"rows disagree on the experiment count: {sorted(counts)}")
-    print(f"Validation run: {counts.pop():,} simulated experiments per row, seed {SEED}.\n")
-    print("| Scenario | Claim | Empirical | MC error | Verdict |")
-    print("|---|---|---|---|---|")
-    for row in rows:
-        print(row.as_markdown())
+    return {
+        "design": {"seed": SEED, "alpha": ALPHA, "n_experiments": counts.pop()},
+        "recorded": record.provenance("examples/validation_table.py", recorded_on),
+        "rows": [row.as_payload() for row in rows],
+    }
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Check the package against a known truth.")
+    parser.add_argument(
+        "--record",
+        action="store_true",
+        help="write docs/data/findings.json, the evidence the page is built from",
+    )
+    arguments = parser.parse_args()
+
+    # The tables carry "±" and "≤". A Windows console defaults to a code page
+    # that cannot encode either, and the fix is to make this stream capable
+    # rather than to keep a second, ASCII-only formatting of the same numbers.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+
+    rng = np.random.default_rng(SEED)
+    section = payload(build_rows(rng), datetime.date.today().isoformat())
+
+    # Rendered through the same code as the page, so stdout, the README and the
+    # published table cannot disagree about a number or how it is formatted.
+    validation = record.validation_of(section)
+    print(markdown.validation_preamble(validation) + "\n")
+    print(markdown.validation_table(validation))
+
+    if arguments.record:
+        record.write_section("validation", section)
+        print(f"\nRecorded to {record.RECORD_PATH.relative_to(record.ROOT)}")
+        print("Rebuild the page with: python -m sitegen.build")
 
 
 if __name__ == "__main__":

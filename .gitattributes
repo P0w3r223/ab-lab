@@ -1,0 +1,9 @@
+# Generated files are compared byte for byte by tests/test_site_committed.py.
+# The working machine is Windows and CI is Ubuntu, so without this the check
+# fails on line endings rather than on anything to do with the numbers.
+# Adding this file is not enough on its own: the tracked copies were committed
+# as CRLF, so it lands together with `git add --renormalize .`.
+docs/index.html      text eol=lf
+docs/data/*.json     text eol=lf
+docs/images/*.svg    text eol=lf
+README.md            text eol=lf
