@@ -23,6 +23,7 @@ src/ab_lab/
   cluster.py     # repeated measurements per unit: CR1 sandwich, design effect
   multiplicity.py # many metrics: Bonferroni, Holm, Benjamini-Hochberg
   ratio.py       # ratios of two totals: the delta method over cluster.py
+  cuped.py       # variance reduction from a pre-experiment covariate
   simulate.py    # draws + p-value adapters + the A/A / A/B / peeking harness
 sitegen/         # renders the page, the README tables and the SVG charts
   record.py      #   the committed evidence: counts in, SimulationSummary out

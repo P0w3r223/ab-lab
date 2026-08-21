@@ -149,6 +149,43 @@ class SampleSizeResult:
 
 
 @dataclass(frozen=True)
+class CupedResult(TestResult):
+    """A test run on a metric with its pre-experiment noise subtracted out.
+
+    Attributes:
+        theta: The coefficient applied to the centred covariate. Reported because
+            it is the one number that says whether the covariate was worth using
+            at all, and because a wildly different theta between two runs of the
+            same experiment means the covariate is unstable.
+        correlation: Pooled correlation between metric and covariate. The
+            variance reduction is its square, so 0.7 buys about half.
+        variance_reduction: The **realised** share of variance removed, measured
+            on this data rather than predicted from the correlation. Squaring the
+            correlation gives the expectation; this gives what happened.
+        unadjusted_estimate: The same difference without the adjustment. It
+            should be close to ``estimate`` - CUPED changes the precision, not
+            the answer - and a gap between them is evidence that randomisation
+            did not balance the covariate.
+    """
+
+    theta: float
+    correlation: float
+    variance_reduction: float
+    unadjusted_estimate: float
+
+    @property
+    def effective_sample_multiplier(self) -> float:
+        """How many times the sample the adjustment is worth.
+
+        A 50% variance reduction is worth twice the traffic, because the variance
+        of a mean falls as 1/n. This is the number to put in front of anyone
+        deciding whether the covariate is worth the pipeline it needs.
+        """
+        remaining = 1.0 - self.variance_reduction
+        return 1.0 / remaining if remaining > 0.0 else float("inf")
+
+
+@dataclass(frozen=True)
 class RatioTestResult(TestResult):
     """A difference of two ratios of totals.
 

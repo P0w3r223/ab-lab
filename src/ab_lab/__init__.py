@@ -12,6 +12,8 @@ The package is organised by the question you are asking:
   of these results survive being asked all at once?
 * :mod:`ab_lab.ratio` - when the metric is a ratio of two totals: what is the
   variance of a number whose denominator moves too?
+* :mod:`ab_lab.cuped` - before *and* after: can last month's data buy this
+  experiment a smaller sample?
 * :mod:`ab_lab.simulate` - underneath all of it: does this code actually work?
 
 One vocabulary difference to know about: design functions take
@@ -40,6 +42,7 @@ from .cluster import (
     intraclass_correlation,
     sample_size_for_clustered_mean,
 )
+from .cuped import CupedSample, cuped_t_test, cuped_theta
 from .multiplicity import (
     CORRECTIONS,
     benjamini_hochberg,
@@ -81,6 +84,8 @@ __all__ = [
     "ClusteredSample",
     "ClusteredSampleSizeResult",
     "ConfidenceInterval",
+    "CupedResult",
+    "CupedSample",
     "MdeResult",
     "MultipleComparisonResult",
     "RatioSample",
@@ -98,6 +103,8 @@ __all__ = [
     "check_srm",
     "cluster_robust_t_test",
     "cohens_h",
+    "cuped_t_test",
+    "cuped_theta",
     "design_effect",
     "holm",
     "intraclass_correlation",
