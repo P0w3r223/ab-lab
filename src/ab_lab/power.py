@@ -30,9 +30,10 @@ from typing import Literal
 
 from scipy import optimize, stats
 
-from .results import SampleSizeResult
+from ._validation import DesignAlternative, check_alpha, check_power
+from .results import MdeResult, SampleSizeResult
 
-Alternative = Literal["two-sided", "one-sided"]
+Alternative = DesignAlternative
 
 # The power equation is solved numerically inside these bounds. The lower bound
 # keeps the t-distribution's degrees of freedom positive; the upper bound turns
@@ -51,8 +52,7 @@ _NEGLIGIBLE_FAR_TAIL = 1e-16
 
 def _tail_alpha(alpha: float, alternative: Alternative) -> float:
     """Alpha spent in the tail the alternative points at."""
-    if not 0.0 < alpha < 1.0:
-        raise ValueError(f"alpha must be in (0, 1), got {alpha}")
+    check_alpha(alpha)
     if alternative == "two-sided":
         return alpha / 2.0
     if alternative == "one-sided":
@@ -157,17 +157,6 @@ def _far_tail_bound(critical: float, noncentrality: float) -> float:
     return float(stats.norm.cdf(-critical - noncentrality))
 
 
-def _check_power(power: float) -> float:
-    """Reject a target power the equation has no solution for.
-
-    Without this the failure surfaces from deep inside the root finder as
-    "f(a) and f(b) must have different signs", which says nothing useful.
-    """
-    if not 0.0 < power < 1.0:
-        raise ValueError(f"power must be in (0, 1), got {power}")
-    return power
-
-
 def _solve_sample_size(
     power_fn,
     effect_size: float,
@@ -181,7 +170,7 @@ def _solve_sample_size(
     Power is monotone in n, so a bracketed root finder is both sufficient and
     robust - no gradients, no starting guess to tune.
     """
-    _check_power(power)
+    check_power(power)
     if effect_size == 0.0:
         raise ValueError("effect_size must be non-zero: a null effect needs infinite sample")
 
@@ -282,22 +271,44 @@ def mde_for_mean(
     power: float = 0.8,
     ratio: float = 1.0,
     alternative: Alternative = "two-sided",
-) -> float:
+) -> MdeResult:
     """Smallest absolute mean difference detectable with the sample you have.
 
     The question every experiment owner should ask before launching: not "is
     this enough traffic?" but "what is the smallest effect this traffic can
     see at all?".
+
+    Returns an :class:`~ab_lab.results.MdeResult`; the magnitude is ``.mde``,
+    on the metric's own scale. There is deliberately no implicit conversion to
+    ``float``: the number means nothing without the alpha and power it was
+    solved at, so a caller who wants the bare magnitude names it.
     """
     if std_dev <= 0.0:
         raise ValueError(f"std_dev must be positive, got {std_dev}")
-    _check_power(power)
+    check_power(power)
 
     def gap(effect_size: float) -> float:
         return power_t(effect_size, n_per_group, alpha, ratio, alternative) - power
 
     effect_size = optimize.brentq(gap, 1e-9, 1e3, xtol=1e-10, rtol=1e-12)
-    return float(effect_size * std_dev)
+    return MdeResult(
+        mde=float(effect_size * std_dev),
+        n_per_group=n_per_group,
+        alpha=alpha,
+        power=power,
+        alternative=alternative,
+        # A standardised effect is used as an absolute value, so for a mean a
+        # lift and a drop of the same size need the same sample.
+        direction="either",
+        method="two-sample t-test (noncentral t)",
+        assumptions=(
+            "the metric's standard deviation is the one supplied, estimated "
+            "from historical data rather than from the experiment",
+            "group means are approximately normal at this sample size",
+            "an effect smaller than this is not undetectable - it is detectable "
+            f"with probability below {power:.0%}",
+        ),
+    )
 
 
 def mde_for_proportion(
@@ -308,7 +319,7 @@ def mde_for_proportion(
     ratio: float = 1.0,
     alternative: Alternative = "two-sided",
     direction: Literal["increase", "decrease"] = "increase",
-) -> float:
+) -> MdeResult:
     """Smallest absolute move in a conversion rate detectable at ``n_per_group``.
 
     Args:
@@ -317,14 +328,16 @@ def mde_for_proportion(
             Cohen's h is not symmetric around a baseline, so a guardrail metric
             has to be asked about in the direction it can move.
 
-    Returned on the rate scale as a positive magnitude (``0.004`` means 0.4
-    percentage points either way), found by inverting
+    ``.mde`` is on the rate scale as a positive magnitude (``0.004`` means 0.4
+    percentage points *in the direction asked for*), found by inverting
     :func:`sample_size_for_proportion` numerically because Cohen's h has no
-    closed-form inverse in terms of an absolute lift.
+    closed-form inverse in terms of an absolute lift. Since the magnitude is
+    unsigned, feeding it back into a design function for a decrease means
+    negating it explicitly - which is why ``direction`` travels with the number.
     """
     if not 0.0 < baseline_rate < 1.0:
         raise ValueError(f"baseline_rate must be in (0, 1), got {baseline_rate}")
-    _check_power(power)
+    check_power(power)
     if direction not in ("increase", "decrease"):
         raise ValueError(f"direction must be 'increase' or 'decrease', got {direction!r}")
     sign = 1.0 if direction == "increase" else -1.0
@@ -341,4 +354,19 @@ def mde_for_proportion(
             f"baseline_rate={baseline_rate:g}: even the largest possible move stays "
             f"under-powered"
         )
-    return float(optimize.brentq(gap, 1e-12, upper, xtol=1e-12, rtol=1e-12))
+    return MdeResult(
+        mde=float(optimize.brentq(gap, 1e-12, upper, xtol=1e-12, rtol=1e-12)),
+        n_per_group=n_per_group,
+        alpha=alpha,
+        power=power,
+        alternative=alternative,
+        direction=direction,
+        method="two-proportion z-test (Cohen's h)",
+        assumptions=(
+            f"baseline rate is {baseline_rate:g}; the answer moves with it",
+            "asymmetric in direction: the smallest detectable drop and the "
+            "smallest detectable lift are different numbers",
+            "normal approximation holds (rule of thumb: >= 10 successes and "
+            ">= 10 failures expected in each group)",
+        ),
+    )

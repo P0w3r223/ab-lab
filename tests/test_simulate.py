@@ -11,29 +11,42 @@ suite fails on a broken method, not on an unlucky seed.
 
 from __future__ import annotations
 
+import math
+
 import numpy as np
 import pytest
 
+from ab_lab.cluster import sample_size_for_clustered_mean
+from ab_lab.multiplicity import CORRECTIONS
 from ab_lab.power import power_t, power_z, sample_size_for_proportion
+from ab_lab.results import SimulationSummary
 from ab_lab.sequential import tau_from_mde
 from ab_lab.simulate import (
     binary_draw,
+    cluster_robust_p_value,
+    clustered_normal_draw,
+    correlated_normal_suite_draw,
     lognormal_draw,
     msprt_p_value,
+    naive_welch_p_value,
     normal_draw,
     peeking_curve,
+    poisson_cluster_size,
     proportion_p_value,
+    run_clustered_experiments,
     run_experiments,
+    run_metric_suite,
     run_with_peeking,
     welch_p_value,
+    welch_suite_p_values,
 )
 
 ALPHA = 0.05
 
-
-def _within_monte_carlo_error(summary, target: float, sigmas: float = 4.0) -> bool:
-    """True when the empirical rate is indistinguishable from ``target``."""
-    return abs(summary.rejection_rate - target) < sigmas * summary.monte_carlo_error
+#: Ten Welch tests per experiment, so these runs cost about ten times a
+#: single-metric one. Sized for the sharpest claim in the file - the exact
+#: 1 - 0.95**10 - and no larger.
+SUITE_EXPERIMENTS = 1_000
 
 
 def test_welch_holds_its_nominal_type_i_error_on_aa_data():
@@ -45,7 +58,7 @@ def test_welch_holds_its_nominal_type_i_error_on_aa_data():
         alpha=ALPHA,
         label="A/A Welch",
     )
-    assert _within_monte_carlo_error(summary, ALPHA)
+    assert summary.agrees_with(ALPHA)
     assert summary.mean_estimate == pytest.approx(0.0, abs=0.05)
 
 
@@ -57,7 +70,7 @@ def test_proportion_test_holds_its_nominal_type_i_error_on_aa_data():
         rng=np.random.default_rng(102),
         alpha=ALPHA,
     )
-    assert _within_monte_carlo_error(summary, ALPHA)
+    assert summary.agrees_with(ALPHA)
 
 
 def test_empirical_power_matches_the_promised_power_for_means():
@@ -70,7 +83,7 @@ def test_empirical_power_matches_the_promised_power_for_means():
         rng=np.random.default_rng(103),
         alpha=ALPHA,
     )
-    assert _within_monte_carlo_error(summary, power_t(effect_size, n_per_group, alpha=ALPHA))
+    assert summary.agrees_with(power_t(effect_size, n_per_group, alpha=ALPHA))
 
 
 def test_a_sample_size_solved_for_eighty_percent_power_delivers_it():
@@ -84,7 +97,7 @@ def test_a_sample_size_solved_for_eighty_percent_power_delivers_it():
         rng=np.random.default_rng(104),
         alpha=ALPHA,
     )
-    assert _within_monte_carlo_error(summary, 0.8)
+    assert summary.agrees_with(0.8)
 
 
 def test_the_normal_approximation_is_the_reason_power_z_is_used_for_rates():
@@ -106,7 +119,7 @@ def test_peeking_inflates_the_false_positive_rate():
         draw, welch_p_value, list(range(200, 2_001, 200)), 1_500, rng, alpha=ALPHA
     )
 
-    assert _within_monte_carlo_error(single_look, ALPHA)
+    assert single_look.agrees_with(ALPHA)
     assert ten_looks.rejection_rate > 3 * ALPHA
 
 
@@ -189,7 +202,7 @@ def test_the_sequential_test_survives_the_same_peeking():
         alpha=ALPHA,
         label="A/A mSPRT, 10 looks",
     )
-    assert summary.rejection_rate <= ALPHA + 3 * summary.monte_carlo_error
+    assert summary.agrees_with(ALPHA, claim="at most")
 
 
 def test_the_sequential_test_still_finds_a_real_effect():
@@ -272,3 +285,309 @@ def test_binary_draw_rejects_a_rate_outside_the_unit_interval():
 def test_run_rejects_a_meaningless_number_of_experiments():
     with pytest.raises(ValueError, match="n_experiments must be positive"):
         run_experiments(normal_draw(50), welch_p_value, 0, np.random.default_rng(0))
+
+
+def _summary(n_rejections: int, n_experiments: int = 10_000) -> SimulationSummary:
+    return SimulationSummary(
+        n_experiments=n_experiments,
+        n_rejections=n_rejections,
+        nominal_alpha=ALPHA,
+        mean_estimate=0.0,
+        label="constructed",
+    )
+
+
+def test_a_conservative_procedure_keeps_its_promise_and_breaks_the_other_one():
+    """The mSPRT's measured rate under peeking is around 1.1% against a nominal
+    5%. That is correct behaviour for an anytime-valid test and a failure for a
+    fixed-horizon one, which is why the claim has to be named."""
+    summary = _summary(n_rejections=110)
+
+    assert summary.agrees_with(ALPHA, claim="at most")
+    assert not summary.agrees_with(ALPHA, claim="equals")
+
+
+def test_the_two_claims_do_not_have_the_same_tolerance():
+    """An equality claim can fail in either direction and gets four sigmas; an
+    upper bound can only fail upward and gets three. Between the two there is a
+    band where the answer depends on which promise was made - here it is."""
+    summary = _summary(n_rejections=582)
+    sigmas_above_alpha = (summary.rejection_rate - ALPHA) / summary.monte_carlo_error
+    assert 3.0 < sigmas_above_alpha < 4.0
+
+    assert summary.agrees_with(ALPHA, claim="equals")
+    assert not summary.agrees_with(ALPHA, claim="at most")
+
+
+def test_an_unnamed_claim_is_refused_rather_than_guessed():
+    with pytest.raises(ValueError, match="claim must be"):
+        _summary(n_rejections=500).agrees_with(ALPHA, claim="roughly")
+
+
+def test_the_harness_reports_the_estimand_it_was_given():
+    """Both runners used to report a difference of means whatever the p-value
+    function estimated. A constant estimator makes the coupling visible."""
+    summary = run_experiments(
+        draw=normal_draw(n_per_group=200, mean=10.0, std_dev=1.0),
+        p_value_fn=welch_p_value,
+        n_experiments=25,
+        rng=np.random.default_rng(700),
+        estimate_fn=lambda control, treatment: float(treatment.size),
+    )
+    assert summary.mean_estimate == 200.0
+
+
+def test_the_default_estimand_is_still_the_difference_of_means():
+    summary = run_experiments(
+        draw=normal_draw(n_per_group=200, mean=10.0, std_dev=1.0),
+        p_value_fn=welch_p_value,
+        n_experiments=25,
+        rng=np.random.default_rng(700),
+    )
+    assert summary.mean_estimate == pytest.approx(0.0, abs=0.05)
+
+
+def test_repeated_measurements_per_user_break_the_nominal_error_rate():
+    """The second mechanism, in the same harness and the same summary type.
+
+    A/A data - no effect anywhere - with ten rows per user and an intraclass
+    correlation of 0.30. Analysed row by row, the test rejects about six times
+    more often than it promises; analysed with a cluster-robust standard error,
+    on identical draws, it holds. The design effect predicts 1 + 9(0.30) = 3.7,
+    hence 2*Phi(-1.96/sqrt(3.7)) = 0.308.
+    """
+    draw = clustered_normal_draw(
+        n_clusters_per_group=200, cluster_size=10, icc=0.30, std_dev=1.0
+    )
+
+    naive = run_clustered_experiments(
+        draw=draw,
+        p_value_fn=naive_welch_p_value,
+        n_experiments=2_000,
+        rng=np.random.default_rng(301),
+        alpha=ALPHA,
+        label="A/A clustered, rows treated as independent",
+    )
+    robust = run_clustered_experiments(
+        draw=draw,
+        p_value_fn=cluster_robust_p_value,
+        n_experiments=2_000,
+        rng=np.random.default_rng(301),
+        alpha=ALPHA,
+        label="A/A clustered, cluster-robust",
+    )
+
+    assert naive.rejection_rate > ALPHA + 6.0 * naive.monte_carlo_error
+    assert naive.agrees_with(0.308)
+    assert robust.agrees_with(ALPHA)
+
+
+def test_the_correction_survives_clusters_of_wildly_different_sizes():
+    """Unbalanced is the case that matters: aggregating to user means is only
+    exact when every user contributes the same number of rows, and real users
+    never do."""
+    draw = clustered_normal_draw(
+        n_clusters_per_group=150,
+        cluster_size=poisson_cluster_size(mean_size=8.0),
+        icc=0.25,
+        std_dev=1.0,
+    )
+    robust = run_clustered_experiments(
+        draw=draw,
+        p_value_fn=cluster_robust_p_value,
+        n_experiments=1_500,
+        rng=np.random.default_rng(302),
+        alpha=ALPHA,
+        label="A/A clustered, unbalanced",
+    )
+    assert robust.agrees_with(ALPHA)
+
+
+def test_clustering_costs_nothing_when_there_is_none():
+    """One row per user: the correction must not invent a penalty."""
+    draw = clustered_normal_draw(n_clusters_per_group=400, cluster_size=1, icc=0.0)
+    robust = run_clustered_experiments(
+        draw=draw,
+        p_value_fn=cluster_robust_p_value,
+        n_experiments=1_500,
+        rng=np.random.default_rng(303),
+        alpha=ALPHA,
+        label="A/A unclustered",
+    )
+    assert robust.agrees_with(ALPHA)
+
+
+def test_a_clustered_design_delivers_the_power_it_was_sized_for():
+    """The design loop closed: size it, run it, count how often it wins.
+
+    This is the test that would catch a design-effect inflation applied in the
+    wrong direction, or forgotten - an error that leaves an experiment quietly
+    under-powered and is invisible until the experiment fails to find an effect
+    that was really there.
+    """
+    icc, cluster_size, lift = 0.2, 5, 0.2
+    design = sample_size_for_clustered_mean(
+        mde=lift, std_dev=1.0, icc=icc, mean_cluster_size=cluster_size, power=0.8, alpha=ALPHA
+    )
+
+    achieved = run_clustered_experiments(
+        draw=clustered_normal_draw(
+            n_clusters_per_group=design.n_clusters_per_group,
+            cluster_size=cluster_size,
+            icc=icc,
+            std_dev=1.0,
+            absolute_lift=lift,
+        ),
+        p_value_fn=cluster_robust_p_value,
+        n_experiments=2_000,
+        rng=np.random.default_rng(304),
+        alpha=ALPHA,
+        label="A/B clustered at the sized n",
+    )
+    assert achieved.agrees_with(0.80)
+
+
+def test_sizing_without_the_design_effect_would_have_been_under_powered():
+    """The same experiment sized as though rows were independent.
+
+    Not a straw man: this is what `sample_size_for_mean` returns, and it is the
+    number an experiment gets planned with when nobody asks how many rows a user
+    contributes.
+    """
+    icc, cluster_size, lift = 0.2, 5, 0.2
+    design = sample_size_for_clustered_mean(
+        mde=lift, std_dev=1.0, icc=icc, mean_cluster_size=cluster_size, power=0.8, alpha=ALPHA
+    )
+    naive_clusters = math.ceil(design.independent_per_group / cluster_size)
+    assert naive_clusters < design.n_clusters_per_group
+
+    achieved = run_clustered_experiments(
+        draw=clustered_normal_draw(
+            n_clusters_per_group=naive_clusters,
+            cluster_size=cluster_size,
+            icc=icc,
+            std_dev=1.0,
+            absolute_lift=lift,
+        ),
+        p_value_fn=cluster_robust_p_value,
+        n_experiments=2_000,
+        rng=np.random.default_rng(305),
+        alpha=ALPHA,
+        label="A/B clustered, sized as if independent",
+    )
+    assert achieved.rejection_rate < 0.80 - 4.0 * achieved.monte_carlo_error
+
+
+def test_reading_ten_metrics_at_five_percent_is_not_a_five_percent_test():
+    """The third mechanism. The claim is sharp, not directional.
+
+    Under a global null with K independent metrics the chance of at least one
+    rejection is exactly 1 - (1 - alpha)**K. Asserting "greater than alpha" would
+    pass for a badly broken harness; asserting the exact number does not.
+    """
+    uncorrected = run_metric_suite(
+        draw=correlated_normal_suite_draw(n_per_group=400, n_metrics=10, correlation=0.0),
+        p_value_fn=welch_suite_p_values,
+        n_experiments=SUITE_EXPERIMENTS,
+        rng=np.random.default_rng(401),
+        alpha=ALPHA,
+        label="10 metrics, read as ten separate tests",
+    )
+
+    assert uncorrected.n_comparisons == 10
+    assert uncorrected.agrees_with(1.0 - (1.0 - ALPHA) ** 10)
+
+
+def test_holm_puts_the_family_wise_error_rate_back():
+    corrected = run_metric_suite(
+        draw=correlated_normal_suite_draw(n_per_group=400, n_metrics=10, correlation=0.0),
+        p_value_fn=welch_suite_p_values,
+        n_experiments=SUITE_EXPERIMENTS,
+        rng=np.random.default_rng(402),
+        alpha=ALPHA,
+        correction=CORRECTIONS["holm"],
+        label="10 metrics, Holm",
+    )
+    assert corrected.agrees_with(ALPHA, claim="at most")
+
+
+def test_the_false_discovery_rate_is_a_different_promise_from_the_family_wise_one():
+    """Five true nulls and five real effects - the only setting that separates them.
+
+    Under a *complete* null the false discovery rate and the family-wise rate
+    coincide, so Benjamini-Hochberg is indistinguishable from Holm and the
+    demonstration says nothing. Under a partial null the difference is visible,
+    and measuring it needs `family_wise_error_rate` rather than `rejection_rate`:
+    with five real effects present, nearly every experiment rejects *something*
+    whatever the correction does, so the plain rejection rate is close to 1 for
+    both procedures and distinguishes nothing.
+    """
+    is_null = [True] * 5 + [False] * 5
+    draw = correlated_normal_suite_draw(
+        n_per_group=400,
+        n_metrics=10,
+        correlation=0.0,
+        absolute_lifts=[0.0] * 5 + [0.35] * 5,
+    )
+
+    def suite(name, seed):
+        return run_metric_suite(
+            draw=draw,
+            p_value_fn=welch_suite_p_values,
+            n_experiments=SUITE_EXPERIMENTS,
+            rng=np.random.default_rng(seed),
+            alpha=ALPHA,
+            correction=CORRECTIONS[name],
+            is_null=is_null,
+            label=f"partial null, {name}",
+        )
+
+    discovery = suite("benjamini-hochberg", 404)
+    family_wise = suite("holm", 404)
+
+    # Both find things, so the plain rejection rate says nothing here.
+    assert discovery.rejection_rate > 0.9
+    assert family_wise.rejection_rate > 0.9
+
+    # BH keeps the promise it makes: the share of rejections that are wrong.
+    assert discovery.mean_false_discovery_proportion <= ALPHA
+    # ... and visibly breaks the one it never made.
+    assert discovery.family_wise_error_rate > ALPHA + 4.0 * (
+        discovery.family_wise_monte_carlo_error()
+    )
+    # Holm keeps that one instead, and pays for it with fewer discoveries.
+    assert family_wise.family_wise_error_rate <= ALPHA + 3.0 * (
+        family_wise.family_wise_monte_carlo_error()
+    )
+    assert family_wise.family_wise_error_rate < discovery.family_wise_error_rate
+
+
+@pytest.mark.slow
+def test_bonferroni_also_holds_but_pays_for_its_generality_under_correlation():
+    """Validity under any dependence is bought somewhere, and this is where.
+
+    Marked slow: it is a second confirmation of a guarantee Holm already
+    demonstrates on every pull request, plus one measurement of the price. The
+    weekly job runs it.
+    """
+    independent = run_metric_suite(
+        draw=correlated_normal_suite_draw(n_per_group=400, n_metrics=10, correlation=0.0),
+        p_value_fn=welch_suite_p_values,
+        n_experiments=3_000,
+        rng=np.random.default_rng(405),
+        alpha=ALPHA,
+        correction=CORRECTIONS["bonferroni"],
+        label="10 independent metrics, Bonferroni",
+    )
+    correlated = run_metric_suite(
+        draw=correlated_normal_suite_draw(n_per_group=400, n_metrics=10, correlation=0.8),
+        p_value_fn=welch_suite_p_values,
+        n_experiments=3_000,
+        rng=np.random.default_rng(406),
+        alpha=ALPHA,
+        correction=CORRECTIONS["bonferroni"],
+        label="10 correlated metrics, Bonferroni",
+    )
+
+    assert independent.agrees_with(ALPHA, claim="at most")
+    assert correlated.rejection_rate < ALPHA - 3.0 * correlated.monte_carlo_error
