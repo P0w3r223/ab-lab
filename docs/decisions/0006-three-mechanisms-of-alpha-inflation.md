@@ -30,7 +30,7 @@ through the same summary object, and rendered in the same table.
 | Mechanism | Nominal | Actual | Correction | After |
 |---|---|---|---|---|
 | Peeking, 20 looks | 5% | **25.3%** | mSPRT | 1.2% |
-| Clustering, ICC 0.30, 10 rows/user | 5% | **30.6%** (±0.8) | cluster-robust SE | 5.0% (±0.4) |
+| Clustering, ICC 0.30, 10 rows/user | 5% | **32.3%** (±1.1) | cluster-robust SE | 5.4% (±0.5) |
 | Metric suite, 10 independent metrics | 5% | **40.7%** (±0.8) | Holm | ≤5% |
 
 Row one comes from `examples/peeking_pitfalls.py` at 4 000 runs per cell. Rows
@@ -43,6 +43,15 @@ the design could be contradicted before it was built:
 | naive Welch on clustered rows, A/A | 0.3082 | 0.3060 ± 0.0084 | 0.3σ |
 | the same experiment analysed per user | 0.0500 | 0.0503 ± 0.0040 | 0.1σ |
 | uncorrected family-wise rate, K = 10 | 0.4013 | 0.4073 ± 0.0078 | 0.8σ |
+
+The first two rows have since been **superseded by the implementation**, which
+is what the headline table above now quotes: the pilot used Welch on cluster
+means as its corrected arm, exact only for balanced clusters, where the shipped
+code uses the CR1 sandwich. The shipped numbers are 0.3230 ± 0.0105 naive
+(1.4σ from the derivation) and 0.0540 ± 0.0051 corrected (0.8σ from alpha) —
+the same conclusion, measured by the code that will actually run. The pilot rows
+are kept because a prediction is only evidence if it stays visible after the
+measurement arrives.
 
 Derivations, kept because the *agreement* is the evidence and a lone measurement
 is not: design effect `1 + (m−1)ρ = 1 + 9(0.30) = 3.7`, so the naive standard

@@ -6,6 +6,8 @@ The package is organised by the question you are asking:
 * :mod:`ab_lab.srm` - the moment data arrives: was assignment even correct?
 * :mod:`ab_lab.analyze` - after the experiment: what is the effect, and how sure am I?
 * :mod:`ab_lab.sequential` - during the experiment: may I look at this yet?
+* :mod:`ab_lab.cluster` - when a unit appears more than once: is 5 000 sessions
+  really 5 000 observations?
 * :mod:`ab_lab.simulate` - underneath all of it: does this code actually work?
 
 One vocabulary difference to know about: design functions take
@@ -27,6 +29,13 @@ from .analyze import (
     proportion_test,
     welch_t_test,
 )
+from .cluster import (
+    ClusteredSample,
+    cluster_robust_t_test,
+    design_effect,
+    intraclass_correlation,
+    sample_size_for_clustered_mean,
+)
 from .power import (
     cohens_h,
     mde_for_mean,
@@ -37,6 +46,8 @@ from .power import (
     sample_size_for_proportion,
 )
 from .results import (
+    ClusteredSampleSizeResult,
+    ClusterTestResult,
     ConfidenceInterval,
     MdeResult,
     SampleSizeResult,
@@ -53,6 +64,9 @@ from .srm import check_srm
 __version__ = "0.3.0.dev0"
 
 __all__ = [
+    "ClusterTestResult",
+    "ClusteredSample",
+    "ClusteredSampleSizeResult",
     "ConfidenceInterval",
     "MdeResult",
     "SampleSizeResult",
@@ -64,7 +78,10 @@ __all__ = [
     "always_valid_p_value",
     "bootstrap_diff",
     "check_srm",
+    "cluster_robust_t_test",
     "cohens_h",
+    "design_effect",
+    "intraclass_correlation",
     "mann_whitney",
     "paired_bootstrap",
     "mde_for_mean",
@@ -73,6 +90,7 @@ __all__ = [
     "power_t",
     "power_z",
     "proportion_test",
+    "sample_size_for_clustered_mean",
     "sample_size_for_mean",
     "sample_size_for_proportion",
     "tau_from_mde",

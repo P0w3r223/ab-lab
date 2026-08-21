@@ -9,11 +9,13 @@ This package measures what each of those three costs — on A/A experiments wher
 there is no effect to find — and implements the correction for each.
 **[Live page →](https://p0w3r223.github.io/ab-lab/)**
 
-Looking early is measured below. Counting each user once and testing one metric
-are designed, with their derivations written down before the code exists so the
-simulation has something falsifiable to contradict
-([ADR 0006](docs/decisions/0006-three-mechanisms-of-alpha-inflation.md)); they
-land in 0.3.0.
+Looking early is measured below. Counting each user once is implemented and
+measured in the test suite — row by row, a true null rejects 32.3% of the time
+instead of 5%, and `ab_lab.cluster` puts it back to 5.4% on identical draws.
+Testing one metric is designed, with its derivation written down before the code
+exists so the simulation has something falsifiable to contradict
+([ADR 0006](docs/decisions/0006-three-mechanisms-of-alpha-inflation.md)); it
+lands in 0.3.0.
 
 Most A/B mistakes are not coding mistakes. They are an experiment sized for an
 effect nobody would act on, a "significant" result read off a dashboard on day
@@ -164,6 +166,32 @@ from ab_lab.analyze import paired_bootstrap
 paired = paired_bootstrap(before, after)   # between-unit variance cancels
 ```
 
+**When a user appears more than once** — is 5 000 sessions really 5 000
+observations?
+
+```python
+from ab_lab.cluster import ClusteredSample, cluster_robust_t_test
+
+control = ClusteredSample.from_arrays(session_values, user_ids)
+treatment = ClusteredSample.from_arrays(other_values, other_user_ids)
+
+result = cluster_robust_t_test(control, treatment)
+# Illustrative, since the numbers depend on your data: at a design effect of 3.7
+# a naive interval was sqrt(3.7) too narrow, and 5 000 rows are worth 1 351
+# independent observations.
+print(result.design_effect, result.effective_n)
+print(result.n_clusters)      # below ~40 the estimator is anti-conservative
+
+# And before the experiment, so it is not under-powered on day one:
+from ab_lab.cluster import sample_size_for_clustered_mean
+
+design = sample_size_for_clustered_mean(
+    mde=0.1, std_dev=1.0, icc=0.3, mean_cluster_size=10
+)
+print(design.n_clusters_per_group)          # 582 users per arm, not 158
+print(design.extra_units_clustering_costs)  # what ignoring it would have cost
+```
+
 ## Architecture
 
 ```
@@ -173,6 +201,8 @@ src/ab_lab/
   analyze.py     # post-hoc: Welch, two-proportion z, Mann-Whitney, bootstrap (paired and not)
   srm.py         # sample ratio mismatch (chi-square on the allocation)
   sequential.py  # mSPRT: anytime-valid p-values, SequentialMonitor
+  cluster.py     # repeated measurements per user: CR1 sandwich, design effect,
+                 # and the sample size that accounts for it
   simulate.py    # draws + p-value adapters + the A/A / A/B / peeking harness
 sitegen/         # renders the page, the tables above and the chart, from
                  # docs/data/findings.json — never simulates, never guesses
@@ -194,9 +224,12 @@ README are assertions in `tests/`. Rendering lives in `examples/`.
 
 ## What this package will not do for you
 
-- **It assumes independent units.** Metrics with repeated measurements per user
-  (sessions, orders) violate that; the variance is understated and every
-  interval here is too narrow. Cluster-robust variance is not implemented.
+- **Independence is now optional, but you have to ask for it.** The default
+  tests assume one observation per unit. Metrics with repeated measurements per
+  user (sessions, orders) violate that, and analysed row by row they reject
+  32.3% of the time under a true null instead of 5%. `ab_lab.cluster` fixes it —
+  but nothing detects the situation for you, and a cluster-robust standard error
+  is itself anti-conservative below about forty clusters per arm.
 - **The mSPRT is conservative.** Measured false positive rate under ten looks is
   around 1.2% against a nominal 5%. Validity is bought with power, and a
   correctly executed group-sequential design would stop sooner.
@@ -220,7 +253,8 @@ README are assertions in `tests/`. Rendering lives in `examples/`.
 
 Tracked as issues labelled `roadmap`:
 
-1. Cluster-robust variance for repeated measurements per user.
+1. Multiple-comparison control across a metric suite — the third mechanism, and
+   the last one 0.3.0 needs.
 2. CUPED variance reduction using a pre-experiment covariate.
 3. A worked e-commerce case study: conversion and average order value together,
    ending in a business decision rather than a p-value.
