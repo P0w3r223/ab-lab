@@ -1,7 +1,9 @@
 """The weekly drift check: every recorded finding, re-measured at full size.
 
 Marked ``slow`` and therefore skipped by ``pytest``; ``.github/workflows/refresh.yml``
-runs ``pytest -m slow`` once a week and on demand. This is the guard the cheap
+runs ``pytest -m slow`` once a week and on demand. Every finding in the record is
+replayed - which this file claimed before it was true, having covered only two of
+the three sections the page publishes. This is the guard the cheap
 ones in ``test_record.py`` are a smoke test for - they replay two cells at a
 tenth of their size, which finds a broken method and not a drift of two points.
 
@@ -22,7 +24,7 @@ import numpy as np
 import pytest
 
 from ab_lab.results import SimulationSummary
-from examples import peeking_pitfalls, validation_table
+from examples import peeking_pitfalls, three_inflations, validation_table
 from sitegen import record
 
 pytestmark = pytest.mark.slow
@@ -72,3 +74,33 @@ def test_every_recorded_validation_row_still_reproduces():
         assert fresh.summary.agrees_with(recorded.expected, recorded.claim), (
             f"{recorded.scenario}: the fresh run no longer supports its own claim"
         )
+
+
+def test_the_recorded_clustering_curve_still_reproduces():
+    """Added because the file's own opening line was false.
+
+    It said "every recorded finding, re-measured at full size" while replaying
+    only peeking and validation - so two of the three sections on the published
+    page were never re-measured by anything, weekly or otherwise.
+    """
+    evidence = record.load().findings["clustering"]
+    naive, robust = three_inflations.run_clustering()
+
+    for role, fresh_series in (("naive", naive), ("corrected", robust)):
+        recorded = evidence.series_by_role(role)
+        for rows, cell, fresh in zip(
+            evidence.x_values, recorded.cells, fresh_series, strict=True
+        ):
+            _assert_agrees(f"clustering/{role} at {rows:g} rows per user", cell.summary, fresh)
+
+
+def test_the_recorded_multiplicity_curve_still_reproduces():
+    evidence = record.load().findings["multiplicity"]
+    uncorrected, corrected = three_inflations.run_multiplicity()
+
+    for role, fresh_series in (("naive", uncorrected), ("corrected", corrected)):
+        recorded = evidence.series_by_role(role)
+        for metrics, cell, fresh in zip(
+            evidence.x_values, recorded.cells, fresh_series, strict=True
+        ):
+            _assert_agrees(f"multiplicity/{role} at {metrics:g} metrics", cell.summary, fresh)

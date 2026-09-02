@@ -58,15 +58,14 @@ class RatioSample:
     denominator: NDArray[np.float64]
     cluster_ids: NDArray[np.int64]
 
-    @classmethod
-    def from_arrays(
-        cls, numerator: ArrayLike, denominator: ArrayLike, cluster_ids: ArrayLike
-    ) -> RatioSample:
-        """Validate and coerce. One row per observation, in all three arrays."""
-        top = np.asarray(numerator, dtype=np.float64)
-        bottom = np.asarray(denominator, dtype=np.float64)
-        units = np.asarray(cluster_ids)
+    def __post_init__(self) -> None:
+        """Validate on every path in, not only through :meth:`from_arrays`.
 
+        The constructor is public, so validating in the classmethod alone left
+        this class able to carry a NaN into a p-value that reads as "not
+        significant".
+        """
+        top, bottom, units = self.numerator, self.denominator, self.cluster_ids
         if top.ndim != 1:
             raise ValueError(f"numerator must be one-dimensional, got shape {top.shape}")
         if bottom.shape != top.shape or units.shape != top.shape:
@@ -83,7 +82,17 @@ class RatioSample:
         if not np.issubdtype(units.dtype, np.integer):
             raise ValueError(f"cluster_ids must be integers, got dtype {units.dtype}")
 
-        return cls(numerator=top, denominator=bottom, cluster_ids=units.astype(np.int64))
+    @classmethod
+    def from_arrays(
+        cls, numerator: ArrayLike, denominator: ArrayLike, cluster_ids: ArrayLike
+    ) -> RatioSample:
+        """Coerce anything array-like, then construct - which validates."""
+        units = np.asarray(cluster_ids)
+        return cls(
+            numerator=np.asarray(numerator, dtype=np.float64),
+            denominator=np.asarray(denominator, dtype=np.float64),
+            cluster_ids=units.astype(np.int64) if np.issubdtype(units.dtype, np.integer) else units,
+        )
 
     @property
     def n_clusters(self) -> int:

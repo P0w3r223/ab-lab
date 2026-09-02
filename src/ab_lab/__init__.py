@@ -58,10 +58,12 @@ from .power import (
     sample_size_for_mean,
     sample_size_for_proportion,
 )
+from .ratio import RatioSample, ratio_metric_test
 from .results import (
     ClusteredSampleSizeResult,
     ClusterTestResult,
     ConfidenceInterval,
+    CupedResult,
     MdeResult,
     MultipleComparisonResult,
     RatioTestResult,
@@ -76,7 +78,7 @@ from .srm import check_srm
 
 #: Single source of truth: ``pyproject.toml`` reads this attribute rather than
 #: restating the number, so the two cannot drift at the release where it matters.
-__version__ = "0.4.0"
+__version__ = "0.4.1"
 
 __all__ = [
     "CORRECTIONS",

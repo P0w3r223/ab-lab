@@ -203,50 +203,6 @@ def _validation_section(validation: Validation) -> str:
 </section>"""
 
 
-def _not_yet_section(record: Record) -> str:
-    missing = [
-        (
-            "Count each user once",
-            "Metrics with repeated measurements per user - sessions, orders, page views - "
-            "break the independence every interval here assumes. <strong>Implemented and "
-            "measured in the test suite</strong>: analysed row by row at an intraclass "
-            "correlation of 0.30 with ten rows per user, a true null rejects 32.3% "
-            "(±1.1) of the time; the cluster-robust standard error in "
-            "<code>ab_lab.cluster</code> puts it back to 5.4% (±0.5) on identical draws. "
-            "It is not on this page yet because the finding has not been recorded here - "
-            "and this page only shows what the record contains.",
-        ),
-        (
-            "Test one metric",
-            "Ten metrics at 5% each reject at least one under the global null "
-            "1 - 0.95<sup>10</sup> = 40.1% of the time. <strong>Implemented and "
-            "measured in the test suite</strong>: 39.4% (±1.6) uncorrected, 5.2% (±0.7) "
-            "with Holm. <code>ab_lab.multiplicity</code> also has Benjamini-Hochberg, "
-            "which controls something different - the expected share of the rejections "
-            "that are wrong, not the chance of there being one.",
-        ),
-    ]
-    # The section exists only while something in the claim is unrecorded. Keyed
-    # on the findings actually present, so it disappears by itself rather than
-    # by someone remembering to delete it.
-    if all(key in record.findings for key in FINDING_ORDER):
-        return ""
-    items = "\n".join(
-        f"  <p><strong>{title}.</strong> {body}</p>" for title, body in missing
-    )
-    return f"""<section>
-  <h2>Two thirds of that sentence is measured, but not on this page yet</h2>
-  <p>The claim above names three mechanisms. All three are implemented, and all three are
-  measured on experiments where there is no effect to find. Only the first has been
-  <em>recorded onto this page</em>, and this page shows what the record contains and
-  nothing else - which is the point of building it that way. The derivations for the other
-  two were written down before their code existed, so the simulation had something
-  falsifiable to contradict: see <a href="decisions/{ADR_FILES["0006"]}">ADR 0006</a>.</p>
-{items}
-  <p>Saying so here costs less than a page that implies three findings and shows one.</p>
-</section>"""
-
-
 def _limits_section() -> str:
     return """<section>
   <h2>What this package will not do for you</h2>
@@ -275,20 +231,63 @@ def _limits_section() -> str:
 </section>"""
 
 
+def _provenance_rows(record: Record) -> str:
+    """One row per script that contributed figures, with its own seed.
+
+    An earlier version took `next(iter(record.findings.values()))` and printed
+    that one section's script, seed and package version as though it were the
+    whole page's. Since `load()` sorts the findings, the first value is
+    *clustering* - so the published page attributed the peeking chart to
+    `three_inflations.py` at seed 20260821, when it came from
+    `peeking_pitfalls.py` at seed 20260721, and named a package version that no
+    longer existed. The byte-equality guard could not catch it: the generator
+    faithfully produced the wrong bytes.
+    """
+    sources: dict[tuple[str, str, str, str], list[str]] = {}
+    for finding in _ordered(record.findings):
+        key = (
+            finding.recorded["script"],
+            str(finding.design["seed"]),
+            finding.recorded["recorded_on"],
+            finding.recorded["ab_lab_version"],
+        )
+        sources.setdefault(key, []).append(finding.title.lower())
+    if record.validation is not None:
+        recorded = record.validation.recorded
+        key = (
+            recorded["script"],
+            str(record.validation.design["seed"]),
+            recorded["recorded_on"],
+            recorded["ab_lab_version"],
+        )
+        sources.setdefault(key, []).append("the validation table")
+
+    rows = []
+    for (script, seed, recorded_on, version), sections in sources.items():
+        rows.append(
+            f"    <tr><td><code>{script}</code></td><td>{seed}</td>"
+            f"<td>{recorded_on}</td><td>{version}</td>"
+            f"<td>{'; '.join(sections)}</td></tr>"
+        )
+    header = (
+        "    <tr><th>Script</th><th>Seed</th><th>Recorded</th><th>ab-lab</th>"
+        "<th>What it produced</th></tr>"
+    )
+    body = "\n".join([header, *rows])
+    return f'<div class="scroll">\n  <table>\n{body}\n  </table>\n</div>'
+
+
 def _footer(record: Record) -> str:
-    peeking = next(iter(record.findings.values()))
-    recorded = peeking.recorded
     links = " · ".join(
         f'<a href="decisions/{ADR_FILES[number]}">ADR {number}</a> {title}'
         for number, title in ADR_LINKS
     )
     return f"""<footer>
   <p>Every figure on this page is interpolated from
-  <a href="data/findings.json">docs/data/findings.json</a>, recorded
-  {recorded["recorded_on"]} by <code>{recorded["script"]}</code> at seed
-  {peeking.design["seed"]} on ab-lab {recorded["ab_lab_version"]}, numpy
-  {recorded["numpy_version"]}. Nothing here was typed by hand, and a test compares the
-  committed bytes of this page against what the generator produces.</p>
+  <a href="data/findings.json">docs/data/findings.json</a>. Nothing here was typed by
+  hand, and a test compares the committed bytes of this page against what the generator
+  produces. The figures come from more than one run, so each one says which:</p>
+  {_provenance_rows(record)}
   <p>{links}</p>
   <p>Portfolio project P2 · <a href="{REPO_URL}">source on GitHub</a></p>
 </footer>
@@ -321,7 +320,6 @@ def render(record: Record) -> str:
     sections.extend(_finding_section(finding) for finding in findings)
     if record.validation is not None:
         sections.append(_validation_section(record.validation))
-    sections.append(_not_yet_section(record))
     sections.append(_limits_section())
 
     return (

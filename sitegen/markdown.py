@@ -116,8 +116,11 @@ def replace_fences(text: str, blocks: dict[str, str]) -> str:
         opening = FENCE_OPEN.format(name=name)
         closing = FENCE_CLOSE.format(name=name)
         start = text.find(opening)
-        end = text.find(closing)
+        # Searched from the opening marker, not from zero: a closing marker that
+        # appears *before* its opening one would otherwise slice backwards and
+        # produce silently mangled output instead of the error promised above.
+        end = text.find(closing, start) if start != -1 else -1
         if start == -1 or end == -1:
-            raise ValueError(f"README has no '{name}' fence to fill")
+            raise ValueError(f"README has no well-formed '{name}' fence to fill")
         text = text[:start] + fence(name, body) + text[end + len(closing) :]
     return text

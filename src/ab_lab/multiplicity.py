@@ -3,8 +3,9 @@
 An experiment rarely has one metric. It has a success metric, three secondary
 ones, and a dozen guardrails, and each is read at alpha = 0.05. Under a global
 null with ten independent metrics, the probability that at least one comes back
-significant is ``1 - 0.95**10 = 40%`` - measured here at 40.7% (±0.8). That is
-the same arithmetic as peeking, run across metrics instead of across time.
+significant is ``1 - 0.95**10 = 40.13%`` - measured at 40.23% (±0.90) over 3 000
+runs. That is the same arithmetic as peeking, run across metrics instead of
+across time.
 
 Three corrections, controlling **two different things**, and the difference is
 the reason all three are here rather than one:
