@@ -5,15 +5,23 @@ presentation audit's Phase 1 was meant to produce one head block and one palette
 for every repository to emit verbatim; it does not exist, and four pages in the
 portfolio already carry their own copy.
 
-**Two values here deliberately differ from the page this was vendored from**,
-because two sibling repositories had already corrected them and left the
-measurement in their CSS. Copying "faithfully" would have shipped two known
-contrast defects onto a page whose argument is that the craft is checkable:
+**Three values here differ from the page this was vendored from**, because
+sibling repositories had corrected them and left the measurement in their CSS.
+Copying "faithfully" would have shipped known contrast defects onto a page whose
+argument is that the craft is checkable:
 
 * ``--positive`` is ``#047857`` rather than the obvious ``#059669``, which
   measures 3.5:1 on ``--surface`` - below AA for text this size.
 * ``--accent-soft`` is ``#5b93e4`` rather than ``#93c5fd``, which sat at 1.8:1
   against the page, under the 3:1 a non-text graphic needs.
+* ``--accent-soft`` in dark is ``#4167a6`` rather than ``#2c4a7c``, 3.30:1
+  against 2.11:1. This one arrived last, in ``0008`` S7, and nothing here paints
+  the token - so it is conformance rather than a repair.
+
+**Two of the three are no longer divergences.** ``0008`` S7 took the pinned
+values onto ``doc-extract``, ``it-job-radar`` and ``pl-review-sense`` as well, so
+the pages this was vendored from now agree with it. The paragraph is kept because
+it records *why* each value is what it is, which outlives the disagreement.
 
 ``--danger`` is not new either: it is taken from the one page in the portfolio
 that already needed a red. Inventing a second one is exactly the divergence this
@@ -42,9 +50,7 @@ DARK = {
     "text": "#e6eaf2",
     "muted": "#98a3b6",
     "accent": "#6ea8fe",
-    # 3.30:1 on the dark page, where `#2c4a7c` sat at 2.11:1 — `0007` §5 clause 1 pins the
-  # measured value rather than the majority one, and nothing here paints the token.
-  "accent-soft": "#4167a6",
+    "accent-soft": "#4167a6",
     "positive": "#34d399",
     "warn": "#fbbf24",
     "danger": "#f87171",
