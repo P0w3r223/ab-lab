@@ -38,7 +38,7 @@
     --text: #e6eaf2;
     --muted: #98a3b6;
     --accent: #6ea8fe;
-    --accent-soft: #2c4a7c;
+    --accent-soft: #4167a6;
     --positive: #34d399;
     --warn: #fbbf24;
     --danger: #f87171;
@@ -84,19 +84,19 @@ section {
 }
 
 .tiles { display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 0 0 1.5rem; padding: 0; }
-.tile {
+.kpi {
   flex: 1 1 12rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 0.9rem 1rem;
   background: var(--surface);
 }
-.tile .value { font-size: 1.6rem; font-weight: 700; line-height: 1.1; }
-.tile .value.bad { color: var(--danger); }
-.tile .value.good { color: var(--positive); }
-.tile .caption { color: var(--muted); font-size: 0.85rem; margin-top: 0.25rem; }
+.kpi .value { font-size: 1.6rem; font-weight: 700; line-height: 1.1; }
+.kpi .value.bad { color: var(--danger); }
+.kpi .value.good { color: var(--positive); }
+.kpi .caption { color: var(--muted); font-size: 0.85rem; margin-top: 0.25rem; }
 
-.scroll { overflow-x: auto; }
+.table-wrap { overflow-x: auto; }
 table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
 th, td { text-align: right; padding: 0.4rem 0.65rem; border-bottom: 1px solid var(--border); }
 th:first-child, td:first-child { text-align: left; }
@@ -147,16 +147,16 @@ footer { color: var(--muted); font-size: 0.85rem; margin-top: 2.5rem; }
 <h1>A 5% test is only 5% if you look once, count each user once, and test one metric.</h1>
 <p class="lead">Three ways an A/B experiment quietly stops being the test it claims to be. Each one is measured below, on experiments with <em>no true effect at all</em>, and each is paired with the procedure that puts the rate back. The statistics are implemented in this package; <code>statsmodels</code> appears only in the test suite, as an oracle.</p>
 <ul class="tiles">
-  <li class="tile"><div class="value bad">25.3%</div><div class="caption">of A/A experiments declared a winner at 20 times the results are checked, against a nominal 5% - and 1.2% once corrected</div></li>
-  <li class="tile"><div class="value bad">44.0%</div><div class="caption">of A/A experiments declared a winner at 20 rows per user, against a nominal 5% - and 5.6% once corrected</div></li>
-  <li class="tile"><div class="value bad">65.7%</div><div class="caption">of A/A experiments declared a winner at 20 metrics measured at once, against a nominal 5% - and 4.9% once corrected</div></li>
-  <li class="tile"><div class="value good">5/5</div><div class="caption">claims this package makes about itself, checked against a simulated world where the answer is known</div></li>
+  <li class="kpi"><div class="value bad">25.3%</div><div class="caption">of A/A experiments declared a winner at 20 times the results are checked, against a nominal 5% - and 1.2% once corrected</div></li>
+  <li class="kpi"><div class="value bad">44.0%</div><div class="caption">of A/A experiments declared a winner at 20 rows per user, against a nominal 5% - and 5.6% once corrected</div></li>
+  <li class="kpi"><div class="value bad">65.7%</div><div class="caption">of A/A experiments declared a winner at 20 metrics measured at once, against a nominal 5% - and 4.9% once corrected</div></li>
+  <li class="kpi"><div class="value good">5/5</div><div class="caption">claims this package makes about itself, checked against a simulated world where the answer is known</div></li>
 </ul>
 
 <section>
   <h2>The cost of looking early</h2>
   <p>A fixed-horizon p-value is valid at the sample size the experiment was designed for, and nowhere else. These are A/A experiments - there is no effect to find - analysed with the same data and the same schedule of looks under two decision rules: the ordinary t-test read repeatedly, and a sequential test whose guarantee holds at every look.</p>
-  <div class="scroll">
+  <div class="table-wrap">
   <table>
     <tr><th>Times the results are checked</th><th>Welch t-test (fixed horizon)</th><th>mSPRT (anytime-valid)</th></tr>
     <tr><td>1</td><td>4.9% (±0.3%)</td><td>0.2% (±0.1%)</td></tr>
@@ -238,7 +238,7 @@ footer { color: var(--muted); font-size: 0.85rem; margin-top: 2.5rem; }
 <section>
   <h2>The cost of counting a user more than once</h2>
   <p>A/A experiments with no effect anywhere, where each user contributes several rows that move together. Analysed row by row, every extra row looks like extra evidence and the variance of the difference is understated; analysed with a cluster-robust standard error, on the same draws, the rate holds. One row per user is the control case, where the correction must cost nothing at all.</p>
-  <div class="scroll">
+  <div class="table-wrap">
   <table>
     <tr><th>Rows per user</th><th>Every row an observation</th><th>Cluster-robust standard error</th></tr>
     <tr><td>1</td><td>6.3% (±0.5%)</td><td>6.3% (±0.5%)</td></tr>
@@ -306,7 +306,7 @@ footer { color: var(--muted); font-size: 0.85rem; margin-top: 2.5rem; }
 <section>
   <h2>The cost of asking more than one question</h2>
   <p>A/A experiments measured on several independent metrics at once, each read at alpha. The chance that at least one comes back significant is 1 - (1 - alpha) to the power of the family size - the same arithmetic as peeking, run across metrics instead of across time. Holm holds the family-wise rate at alpha whatever the family size.</p>
-  <div class="scroll">
+  <div class="table-wrap">
   <table>
     <tr><th>Metrics measured at once</th><th>Each metric read at alpha</th><th>Holm</th></tr>
     <tr><td>1</td><td>5.1% (±0.6%)</td><td>5.1% (±0.6%)</td></tr>
@@ -377,7 +377,7 @@ footer { color: var(--muted); font-size: 0.85rem; margin-top: 2.5rem; }
   10,000 simulated experiments per row, seed 20260721;
   "MC error" is the standard error of the empirical rate - the noise floor of the run
   itself.</p>
-  <div class="scroll">
+  <div class="table-wrap">
   <table>
     <tr><th>Scenario</th><th>Claim</th><th>Empirical</th><th>MC error</th><th>Verdict</th></tr>
     <tr><td>Welch t-test, A/A (no effect)</td><td>= 0.0500</td><td>0.0538</td><td>±0.0023</td><td>pass</td></tr>
@@ -427,7 +427,7 @@ footer { color: var(--muted); font-size: 0.85rem; margin-top: 2.5rem; }
   <a href="data/findings.json">docs/data/findings.json</a>. Nothing here was typed by
   hand, and a test compares the committed bytes of this page against what the generator
   produces. The figures come from more than one run, so each one says which:</p>
-  <div class="scroll">
+  <div class="table-wrap">
   <table>
     <tr><th>Script</th><th>Seed</th><th>Recorded</th><th>ab-lab</th><th>What it produced</th></tr>
     <tr><td><code>examples/peeking_pitfalls.py</code></td><td>20260721</td><td>2026-08-21</td><td>0.3.0.dev0</td><td>the cost of looking early</td></tr>
