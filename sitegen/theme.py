@@ -50,6 +50,10 @@ DARK = {
 
 SITE_URL = "https://p0w3r223.github.io/ab-lab/"
 REPO_URL = "https://github.com/P0w3r223/ab-lab"
+#: `0007` §5 clause 6 — the one link back to the profile, whose README is the index.
+#: `0003` §7 settled hub-and-spoke over a mesh: one target, one string per repository,
+#: so cutting a project changes that README and no page.
+PROFILE_URL = "https://github.com/P0w3r223"
 
 #: The one sentence every layer of the presentation chain quotes.
 CLAIM = (

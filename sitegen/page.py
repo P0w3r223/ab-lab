@@ -12,7 +12,7 @@ from .charts import chart
 from .markdown import finding_table, validation_table
 from .numbers import integer, percent, rate_with_error
 from .record import Finding, Record, Validation
-from .theme import CLAIM, REPO_URL, head
+from .theme import CLAIM, PROFILE_URL, REPO_URL, head
 
 ADR_LINKS = [
     ("0001", "statsmodels is a test oracle, not a dependency"),
@@ -289,7 +289,8 @@ def _footer(record: Record) -> str:
   produces. The figures come from more than one run, so each one says which:</p>
   {_provenance_rows(record)}
   <p>{links}</p>
-  <p>Portfolio project P2 · <a href="{REPO_URL}">source on GitHub</a></p>
+  <p>Portfolio project P2 · <a href="{REPO_URL}">source on GitHub</a> ·
+  <a href="{PROFILE_URL}">the rest of the portfolio</a></p>
 </footer>
 </body>
 </html>
