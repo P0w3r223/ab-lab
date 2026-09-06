@@ -42,7 +42,9 @@ DARK = {
     "text": "#e6eaf2",
     "muted": "#98a3b6",
     "accent": "#6ea8fe",
-    "accent-soft": "#4167a6",
+    # 3.30:1 on the dark page, where `#2c4a7c` sat at 2.11:1 — `0007` §5 clause 1 pins the
+  # measured value rather than the majority one, and nothing here paints the token.
+  "accent-soft": "#4167a6",
     "positive": "#34d399",
     "warn": "#fbbf24",
     "danger": "#f87171",
