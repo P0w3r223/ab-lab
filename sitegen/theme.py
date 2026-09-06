@@ -42,7 +42,7 @@ DARK = {
     "text": "#e6eaf2",
     "muted": "#98a3b6",
     "accent": "#6ea8fe",
-    "accent-soft": "#2c4a7c",
+    "accent-soft": "#4167a6",
     "positive": "#34d399",
     "warn": "#fbbf24",
     "danger": "#f87171",
@@ -143,19 +143,19 @@ section {{
 }}
 
 .tiles {{ display: flex; flex-wrap: wrap; gap: 0.75rem; margin: 0 0 1.5rem; padding: 0; }}
-.tile {{
+.kpi {{
   flex: 1 1 12rem;
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 0.9rem 1rem;
   background: var(--surface);
 }}
-.tile .value {{ font-size: 1.6rem; font-weight: 700; line-height: 1.1; }}
-.tile .value.bad {{ color: var(--danger); }}
-.tile .value.good {{ color: var(--positive); }}
-.tile .caption {{ color: var(--muted); font-size: 0.85rem; margin-top: 0.25rem; }}
+.kpi .value {{ font-size: 1.6rem; font-weight: 700; line-height: 1.1; }}
+.kpi .value.bad {{ color: var(--danger); }}
+.kpi .value.good {{ color: var(--positive); }}
+.kpi .caption {{ color: var(--muted); font-size: 0.85rem; margin-top: 0.25rem; }}
 
-.scroll {{ overflow-x: auto; }}
+.table-wrap {{ overflow-x: auto; }}
 table {{ border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }}
 th, td {{ text-align: right; padding: 0.4rem 0.65rem; border-bottom: 1px solid var(--border); }}
 th:first-child, td:first-child {{ text-align: left; }}

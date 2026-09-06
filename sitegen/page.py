@@ -44,7 +44,7 @@ def _table(markdown: str, extra_class: str = "") -> str:
         rows.append(f"    <tr>{rendered}</tr>")
     body = "\n".join(rows)
     classes = f' class="{extra_class}"' if extra_class else ""
-    return f'<div class="scroll">\n  <table{classes}>\n{body}\n  </table>\n</div>'
+    return f'<div class="table-wrap">\n  <table{classes}>\n{body}\n  </table>\n</div>'
 
 
 def _inline(text: str) -> str:
@@ -82,7 +82,7 @@ def _tiles(findings: list[Finding], validation: Validation | None) -> str:
             )
         )
     rendered = "\n".join(
-        f'  <li class="tile"><div class="value {kind}">{value}</div>'
+        f'  <li class="kpi"><div class="value {kind}">{value}</div>'
         f'<div class="caption">{caption}</div></li>'
         for kind, value, caption in tiles
     )
@@ -274,7 +274,7 @@ def _provenance_rows(record: Record) -> str:
         "<th>What it produced</th></tr>"
     )
     body = "\n".join([header, *rows])
-    return f'<div class="scroll">\n  <table>\n{body}\n  </table>\n</div>'
+    return f'<div class="table-wrap">\n  <table>\n{body}\n  </table>\n</div>'
 
 
 def _footer(record: Record) -> str:
