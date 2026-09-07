@@ -2,7 +2,7 @@
 
 Date: 2026-08-21
 Status: accepted
-Author: P0w3r223
+Author: Piotr Cząstkiewicz
 Related to: [0006](0006-three-mechanisms-of-alpha-inflation.md), portfolio presentation audit v2
 Amends: [ADR 0004](0004-scripts-instead-of-notebooks.md) (where the formatter lives), and the committed-artefact rule in `CLAUDE.md`
 

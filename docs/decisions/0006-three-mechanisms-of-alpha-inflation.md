@@ -2,7 +2,7 @@
 
 Date: 2026-08-21
 Status: accepted
-Author: P0w3r223
+Author: Piotr Cząstkiewicz
 Related to: ADR 0001, ADR 0003, ADR 0004, [0007](0007-the-page-is-generated.md)
 
 ---
