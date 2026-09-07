@@ -2,7 +2,7 @@
 
 Date: 2026-08-21
 Status: accepted
-Author: P0w3r223
+Author: Piotr Cząstkiewicz
 Related to: [0006](0006-three-mechanisms-of-alpha-inflation.md) D7, [0008](0008-cluster-robust-variance.md)
 
 ---

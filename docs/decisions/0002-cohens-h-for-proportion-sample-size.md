@@ -2,7 +2,7 @@
 
 Date: 2026-07-21
 Status: accepted
-Author: P0w3r223
+Author: Piotr Cząstkiewicz
 Related to: [0001](0001-no-statsmodels-at-runtime.md)
 
 ---
