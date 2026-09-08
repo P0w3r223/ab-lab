@@ -43,7 +43,7 @@ Checking a fixed-horizon test repeatedly and stopping at the first significant
 reading does not reach the answer faster. It changes the test:
 
 <!-- generated:peeking-preamble -->
-A/A experiments - **no true effect at all** - with 2,000 units per arm, alpha 0.05, 4,000 runs per cell:
+A/A experiments - **no true effect at all** - with 2 000 units per arm, alpha 0.05, 4 000 runs per cell:
 <!-- /generated:peeking-preamble -->
 
 <!-- generated:peeking -->
@@ -90,7 +90,7 @@ known. The second table is the one that matters, because it tests the choice of
 formula and not just its transcription:
 
 <!-- generated:validation-preamble -->
-10,000 simulated experiments per row, seed 20260721. "MC error" is the standard error of the empirical rate - the noise floor of the run itself:
+10 000 simulated experiments per row, seed 20260721. "MC error" is the standard error of the empirical rate - the noise floor of the run itself:
 <!-- /generated:validation-preamble -->
 
 <!-- generated:validation -->
@@ -99,7 +99,7 @@ formula and not just its transcription:
 | Welch t-test, A/A (no effect) | = 0.0500 | 0.0538 | ±0.0023 | pass |
 | Two-proportion z-test, A/A (no effect) | = 0.0500 | 0.0497 | ±0.0022 | pass |
 | Welch t-test, A/B (d = 0.2, n = 400) | = 0.8065 | 0.8077 | ±0.0039 | pass |
-| Sample size solved for 80% power (n = 14,745/arm) | = 0.8000 | 0.7929 | ±0.0041 | pass |
+| Sample size solved for 80% power (n = 14 745/arm) | = 0.8000 | 0.7929 | ±0.0041 | pass |
 | mSPRT, A/A with 10 looks (anytime-valid) | ≤ 0.0500 | 0.0110 | ±0.0010 | pass |
 <!-- /generated:validation -->
 
@@ -314,7 +314,7 @@ README are assertions in `tests/`. Rendering lives in `examples/`.
   controls nothing at all. The library makes you name the members; it cannot
   make that the right list.
 - **The bootstrap's p-value has a floor** of `2/(n_resamples+1)`. A "p < 0.001"
-  read off a 1 000-resample bootstrap is an artefact.
+  read off a 1 000-resample bootstrap is an artefact.
 - **Normal approximations are used for proportions** and are unreliable at very
   low rates with small samples (rule of thumb: at least 10 successes and 10
   failures expected per arm).

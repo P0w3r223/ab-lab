@@ -42,7 +42,7 @@ from ab_lab.simulate import (
 # say it out loud, and it is kept to one import so the noqa stays local.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from sitegen import markdown, record  # noqa: E402
+from sitegen import markdown, numbers, record  # noqa: E402
 
 ALPHA = 0.05
 N_EXPERIMENTS = 10_000
@@ -127,7 +127,7 @@ def build_rows(rng: np.random.Generator) -> list[Row]:
     design = sample_size_for_proportion(0.10, 0.01, alpha=ALPHA, power=0.8)
     rows.append(
         Row(
-            f"Sample size solved for 80% power (n = {design.per_group:,}/arm)",
+            f"Sample size solved for 80% power (n = {numbers.integer(design.per_group)}/arm)",
             0.80,
             run_experiments(
                 binary_draw(design.per_group, 0.10, absolute_lift=0.01),

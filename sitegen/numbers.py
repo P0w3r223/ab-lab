@@ -42,5 +42,11 @@ def error(summary: SimulationSummary) -> str:
 
 
 def integer(value: float) -> str:
-    """A count, grouped the way every surface groups counts."""
-    return f"{value:,.0f}"
+    """A count, grouped the way every surface groups counts: U+202F.
+
+    `0007` §5 clause 8 of the portfolio page specification. Written as an escape
+    rather than as the character, because U+0020 and U+202F are one string in a
+    diff, a terminal and a `grep` -- and this module exists because three surfaces
+    once disagreed about a number nobody could see them disagreeing about.
+    """
+    return f"{value:,.0f}".replace(",", "\u202f")
