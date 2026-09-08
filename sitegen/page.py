@@ -216,7 +216,7 @@ def _limits_section() -> str:
   executed group-sequential design would stop sooner - the reasoning for choosing it anyway
   is in <a href="decisions/0003-msprt-over-group-sequential.md">ADR 0003</a>.</p>
   <p><strong>The bootstrap's p-value has a floor</strong> of <code>2/(n_resamples+1)</code>.
-  A "p &lt; 0.001" read off a 1 000-resample bootstrap is an artefact.</p>
+  A "p &lt; 0.001" read off a 1\u202f000-resample bootstrap is an artefact.</p>
   <p><strong>Normal approximations are used for proportions</strong> and are unreliable at
   very low rates with small samples - at least ten successes and ten failures expected per
   arm is the rule of thumb.</p>

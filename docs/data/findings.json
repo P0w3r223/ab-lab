@@ -389,10 +389,10 @@
       "seed": 20260721
     },
     "recorded": {
-      "ab_lab_version": "0.3.0.dev0",
+      "ab_lab_version": "0.4.1",
       "numpy_version": "2.5.1",
       "python_version": "3.12.10",
-      "recorded_on": "2026-08-21",
+      "recorded_on": "2026-09-08",
       "script": "examples/validation_table.py"
     },
     "rows": [
@@ -430,7 +430,7 @@
         "mean_estimate": 0.00993598507968802,
         "n_experiments": 10000,
         "n_rejections": 7929,
-        "scenario": "Sample size solved for 80% power (n = 14,745/arm)"
+        "scenario": "Sample size solved for 80% power (n = 14 745/arm)"
       },
       {
         "claim": "at most",

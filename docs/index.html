@@ -374,7 +374,7 @@ footer { color: var(--muted); font-size: 0.85rem; margin-top: 2.5rem; }
   <p>Every method is checked twice: against a reference implementation or hand arithmetic in
   the test suite, and against a simulated world where the truth is known. The second is the
   one that matters, because it tests the choice of formula and not just its transcription.
-  10,000 simulated experiments per row, seed 20260721;
+  10 000 simulated experiments per row, seed 20260721;
   "MC error" is the standard error of the empirical rate - the noise floor of the run
   itself.</p>
   <div class="table-wrap">
@@ -383,7 +383,7 @@ footer { color: var(--muted); font-size: 0.85rem; margin-top: 2.5rem; }
     <tr><td>Welch t-test, A/A (no effect)</td><td>= 0.0500</td><td>0.0538</td><td>±0.0023</td><td>pass</td></tr>
     <tr><td>Two-proportion z-test, A/A (no effect)</td><td>= 0.0500</td><td>0.0497</td><td>±0.0022</td><td>pass</td></tr>
     <tr><td>Welch t-test, A/B (d = 0.2, n = 400)</td><td>= 0.8065</td><td>0.8077</td><td>±0.0039</td><td>pass</td></tr>
-    <tr><td>Sample size solved for 80% power (n = 14,745/arm)</td><td>= 0.8000</td><td>0.7929</td><td>±0.0041</td><td>pass</td></tr>
+    <tr><td>Sample size solved for 80% power (n = 14 745/arm)</td><td>= 0.8000</td><td>0.7929</td><td>±0.0041</td><td>pass</td></tr>
     <tr><td>mSPRT, A/A with 10 looks (anytime-valid)</td><td>≤ 0.0500</td><td>0.0110</td><td>±0.0010</td><td>pass</td></tr>
   </table>
 </div>
@@ -408,7 +408,7 @@ footer { color: var(--muted); font-size: 0.85rem; margin-top: 2.5rem; }
   executed group-sequential design would stop sooner - the reasoning for choosing it anyway
   is in <a href="decisions/0003-msprt-over-group-sequential.md">ADR 0003</a>.</p>
   <p><strong>The bootstrap's p-value has a floor</strong> of <code>2/(n_resamples+1)</code>.
-  A "p &lt; 0.001" read off a 1 000-resample bootstrap is an artefact.</p>
+  A "p &lt; 0.001" read off a 1 000-resample bootstrap is an artefact.</p>
   <p><strong>Normal approximations are used for proportions</strong> and are unreliable at
   very low rates with small samples - at least ten successes and ten failures expected per
   arm is the rule of thumb.</p>
@@ -432,7 +432,7 @@ footer { color: var(--muted); font-size: 0.85rem; margin-top: 2.5rem; }
     <tr><th>Script</th><th>Seed</th><th>Recorded</th><th>ab-lab</th><th>What it produced</th></tr>
     <tr><td><code>examples/peeking_pitfalls.py</code></td><td>20260721</td><td>2026-08-21</td><td>0.3.0.dev0</td><td>the cost of looking early</td></tr>
     <tr><td><code>examples/three_inflations.py</code></td><td>20260821</td><td>2026-08-21</td><td>0.3.0.dev0</td><td>the cost of counting a user more than once; the cost of asking more than one question</td></tr>
-    <tr><td><code>examples/validation_table.py</code></td><td>20260721</td><td>2026-08-21</td><td>0.3.0.dev0</td><td>the validation table</td></tr>
+    <tr><td><code>examples/validation_table.py</code></td><td>20260721</td><td>2026-09-08</td><td>0.4.1</td><td>the validation table</td></tr>
   </table>
 </div>
   <p><a href="decisions/0001-no-statsmodels-at-runtime.md">ADR 0001</a> statsmodels is a test oracle, not a dependency · <a href="decisions/0003-msprt-over-group-sequential.md">ADR 0003</a> mSPRT rather than group-sequential boundaries · <a href="decisions/0006-three-mechanisms-of-alpha-inflation.md">ADR 0006</a> one claim measured three ways · <a href="decisions/0008-cluster-robust-variance.md">ADR 0008</a> cluster-robust variance · <a href="decisions/0009-multiplicity-control.md">ADR 0009</a> three corrections, two guarantees · <a href="decisions/0007-the-page-is-generated.md">ADR 0007</a> the page is generated from a committed record</p>

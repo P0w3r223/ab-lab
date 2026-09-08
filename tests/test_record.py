@@ -83,7 +83,8 @@ def test_the_sample_size_row_still_names_the_size_the_design_solves_for(evidence
     """
     solved = sample_size_for_proportion(0.10, 0.01, alpha=0.05, power=0.8)
     scenarios = [row.scenario for row in evidence.validation.rows]
-    assert any(f"n = {solved.per_group:,}/arm" in scenario for scenario in scenarios)
+    expected = f"n = {solved.per_group:,}/arm".replace(",", "\u202f")
+    assert any(expected in scenario for scenario in scenarios)
 
 
 def _credible(recorded, replayed, sigmas: float = SIGMAS) -> bool:
