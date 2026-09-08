@@ -175,7 +175,7 @@ from ab_lab.analyze import paired_bootstrap
 paired = paired_bootstrap(before, after)   # between-unit variance cancels
 ```
 
-**When a user appears more than once** — is 5 000 sessions really 5 000
+**When a user appears more than once** — is 5 000 sessions really 5 000
 observations?
 
 ```python
@@ -322,7 +322,7 @@ README are assertions in `tests/`. Rendering lives in `examples/`.
   usually applies the absolute-difference formula rather than Cohen's h
   ([ADR 0002](docs/decisions/0002-cohens-h-for-proportion-sample-size.md)). For
   the same reason a 1pp *drop* and a 1pp *lift* are not the same experiment:
-  from a 2% baseline they need 2 254 and 3 789 units per arm respectively, so
+  from a 2% baseline they need 2 254 and 3 789 units per arm respectively, so
   guardrail metrics have to be sized in the direction they can move
   (`mde_for_proportion(..., direction="decrease")`).
 
