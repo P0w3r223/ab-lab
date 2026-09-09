@@ -289,7 +289,7 @@ def _footer(record: Record) -> str:
   produces. The figures come from more than one run, so each one says which:</p>
   {_provenance_rows(record)}
   <p>{links}</p>
-  <p>Portfolio project P2 · <a href="{REPO_URL}">source on GitHub</a> ·
+  <p>Portfolio project · <a href="{REPO_URL}">source on GitHub</a> ·
   <a href="{PROFILE_URL}">the rest of the portfolio</a></p>
 </footer>
 </body>
@@ -325,7 +325,7 @@ def render(record: Record) -> str:
 
     return (
         head(f"{CLAIM} — ab-lab", description, og_description)
-        + f"""<p class="eyebrow">Portfolio P2 · applied statistics · no A/B library underneath</p>
+        + f"""<p class="eyebrow">applied statistics · no A/B library underneath</p>
 <h1>{CLAIM}.</h1>
 <p class="lead">{_lead(findings)}</p>
 """
